@@ -38,7 +38,9 @@ def prepare_data(config, project_root):
     """
     print("Preparing data...")
     data_path = os.path.join(project_root, 'data')
-    validation_split = config['dataset']['validation_split']
+    d_config = config['dataset']
+    validation_split = d_config['validation_split']
+    subset_fraction = d_config.get('subset_fraction', 1.0) # Dùng get để tương thích ngược
     batch_size = config['training']['batch_size']
 
     transform = transforms.Compose(
@@ -59,6 +61,14 @@ def prepare_data(config, project_root):
     
     train_indices, val_indices = indices[split:], indices[:split]
     
+    # Lấy một phần nhỏ của dataset nếu được chỉ định
+    if subset_fraction < 1.0:
+        train_subset_size = int(len(train_indices) * subset_fraction)
+        val_subset_size = int(len(val_indices) * subset_fraction)
+        train_indices = train_indices[:train_subset_size]
+        val_indices = val_indices[:val_subset_size]
+        print(f"Using a subset of the data: {subset_fraction*100:.1f}%")
+
     train_sampler = SubsetRandomSampler(train_indices)
     valid_sampler = SubsetRandomSampler(val_indices)
 

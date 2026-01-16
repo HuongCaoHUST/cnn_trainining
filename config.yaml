@@ -9,3 +9,4 @@ model:
 
 dataset:
   validation_split: 0.1
+  subset_fraction: 0.1
