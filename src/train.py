@@ -17,6 +17,7 @@ sys.path.append(project_root)
 
 from model.Alexnet import AlexNet
 from model.Mobilenet import MobileNet
+from src.utils import save_results, save_plots
 
 if __name__ == '__main__':
     # =============================================================================
@@ -93,6 +94,10 @@ if __name__ == '__main__':
     # 4. Vòng lặp Training và Validation
     # =============================================================================
     print("Starting Training...")
+    history_train_loss = []
+    history_val_loss = []
+    history_val_accuracy = []
+
     for epoch in range(NUM_EPOCHS):
         # Training
         model.train()
@@ -112,6 +117,7 @@ if __name__ == '__main__':
             running_loss += loss.item()
 
         avg_train_loss = running_loss / len(train_loader)
+        history_train_loss.append(avg_train_loss)
 
         # Validation
         model.eval()
@@ -132,6 +138,8 @@ if __name__ == '__main__':
 
         avg_val_loss = val_loss / len(validation_loader)
         val_accuracy = 100 * correct / total
+        history_val_loss.append(avg_val_loss)
+        history_val_accuracy.append(val_accuracy)
         
         print(f'Epoch [{epoch+1}/{NUM_EPOCHS}] -> Train Loss: {avg_train_loss:.4f} | Val Loss: {avg_val_loss:.4f}, Val Acc: {val_accuracy:.2f}%')
 
@@ -143,3 +151,14 @@ if __name__ == '__main__':
     save_path = os.path.join(project_root, MODEL_SAVE_PATH)
     torch.save(model.state_dict(), save_path)
     print(f"Model saved to {save_path}")
+
+    # =============================================================================
+    # 6. Lưu kết quả và vẽ biểu đồ
+    # =============================================================================
+    results = {
+        'train_loss': history_train_loss,
+        'val_loss': history_val_loss,
+        'val_accuracy': history_val_accuracy
+    }
+    save_results(results, project_root)
+    save_plots(history_train_loss, history_val_loss, history_val_accuracy, project_root)
