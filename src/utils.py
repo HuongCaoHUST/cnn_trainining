@@ -1,16 +1,23 @@
 import os
-import json
+import csv
 import matplotlib.pyplot as plt
 from matplotlib.ticker import MaxNLocator
 
-def save_results(results, save_dir):
+def update_results_csv(epoch, train_loss, val_loss, val_accuracy, save_dir):
     """
-    Saves the training history to a JSON file in the specified directory.
+    Appends the latest epoch results to a CSV file.
+    Creates the file and writes the header on the first call.
     """
-    results_path = os.path.join(save_dir, 'results.json')
-    with open(results_path, 'w') as f:
-        json.dump(results, f, indent=4)
-    print(f"Results saved to {results_path}")
+    results_path = os.path.join(save_dir, 'results.csv')
+    file_exists = os.path.isfile(results_path)
+
+    with open(results_path, 'a', newline='') as f:
+        writer = csv.writer(f)
+        if not file_exists:
+            writer.writerow(['epoch', 'train_loss', 'val_loss', 'val_accuracy'])
+        
+        writer.writerow([epoch, train_loss, val_loss, val_accuracy])
+    # No print statement here to avoid cluttering the epoch log
 
 def save_plots(history_train_loss, history_val_loss, history_val_accuracy, save_dir):
     """

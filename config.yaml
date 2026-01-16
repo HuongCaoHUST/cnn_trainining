@@ -1,5 +1,5 @@
 training:
-  num_epochs: 2
+  num_epochs: 5
   batch_size: 32  
   learning_rate: 0.001
 
@@ -8,5 +8,6 @@ model:
   save_path: 'cifar_net.pth'
 
 dataset:
+  name: 'MNIST' # 'CIFAR10' or 'MNIST'
   validation_split: 0.1
-  subset_fraction: 0.005
+  subset_fraction: 0.01

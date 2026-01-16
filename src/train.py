@@ -16,7 +16,7 @@ sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
 from model.Alexnet import AlexNet
 from model.Mobilenet import MobileNet
-from src.utils import save_results, save_plots
+from src.utils import update_results_csv, save_plots
 
 def create_run_dir(project_root):
     """
@@ -57,17 +57,33 @@ def prepare_data(config, project_root):
     print("Preparing data...")
     data_path = os.path.join(project_root, 'data')
     d_config = config['dataset']
+    dataset_name = d_config.get('name', 'CIFAR10') # Default to CIFAR10
     validation_split = d_config['validation_split']
     subset_fraction = d_config.get('subset_fraction', 1.0) # Dùng get để tương thích ngược
     batch_size = config['training']['batch_size']
 
-    transform = transforms.Compose(
-        [transforms.Resize((227, 227)),
-         transforms.ToTensor(),
-         transforms.Normalize((0.5, 0.5, 0.5), (0.5, 0.5, 0.5))])
-
-    train_dataset = torchvision.datasets.CIFAR10(root=data_path, train=True,
-                                                 download=True, transform=transform)
+    if dataset_name == 'MNIST':
+        print("Using MNIST dataset.")
+        transform = transforms.Compose([
+            transforms.Resize((227, 227)),
+            transforms.Grayscale(num_output_channels=3),
+            transforms.ToTensor(),
+            transforms.Normalize((0.5, 0.5, 0.5), (0.5, 0.5, 0.5))
+        ])
+        train_dataset = torchvision.datasets.MNIST(root=data_path, train=True,
+                                                   download=True, transform=transform)
+    elif dataset_name == 'CIFAR10':
+        print("Using CIFAR10 dataset.")
+        transform = transforms.Compose([
+            transforms.Resize((227, 227)),
+            transforms.ToTensor(),
+            transforms.Normalize((0.5, 0.5, 0.5), (0.5, 0.5, 0.5))
+        ])
+        train_dataset = torchvision.datasets.CIFAR10(root=data_path, train=True,
+                                                     download=True, transform=transform)
+    else:
+        print(f"Error: Dataset '{dataset_name}' not recognized. Exiting.")
+        sys.exit()
 
     # Tạo samplers để chia train/validation
     num_train = len(train_dataset)
@@ -184,24 +200,20 @@ if __name__ == '__main__':
         history_val_loss.append(avg_val_loss)
         history_val_accuracy.append(val_accuracy)
         
+        # Cập nhật kết quả vào CSV sau mỗi epoch
+        update_results_csv(epoch + 1, avg_train_loss, avg_val_loss, val_accuracy, run_dir)
+        
         print(f'Epoch [{epoch+1}/{NUM_EPOCHS}] -> Train Loss: {avg_train_loss:.4f} | Val Loss: {avg_val_loss:.4f}, Val Acc: {val_accuracy:.2f}%')
 
     print("Finished Training.")
 
     # =============================================================================
-    # 5. Lưu Model
+    # 5. Lưu Model và Vẽ biểu đồ
     # =============================================================================
     save_path = os.path.join(run_dir, MODEL_SAVE_PATH)
     torch.save(model.state_dict(), save_path)
     print(f"Model saved to {save_path}")
 
-    # =============================================================================
-    # 6. Lưu kết quả và vẽ biểu đồ
-    # =============================================================================
-    results = {
-        'train_loss': history_train_loss,
-        'val_loss': history_val_loss,
-        'val_accuracy': history_val_accuracy
-    }
-    save_results(results, run_dir)
+    print("Saving plots...")
     save_plots(history_train_loss, history_val_loss, history_val_accuracy, run_dir)
+    print("Plots saved.")
