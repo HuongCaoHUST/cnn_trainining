@@ -1,0 +1,11 @@
+training:
+  num_epochs: 1
+  batch_size: 32
+  learning_rate: 0.001
+
+model:
+  name: 'AlexNet'
+  save_path: 'cifar_net.pth'
+
+dataset:
+  validation_split: 0.1
