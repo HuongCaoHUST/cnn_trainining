@@ -14,35 +14,10 @@ sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
 from model.Alexnet import AlexNet
 from model.Mobilenet import MobileNet
+from src.utils import _load_class_names_from_file # Import from utils
 
 # Supported image extensions
 IMAGE_EXTENSIONS = ('.png', '.jpg', '.jpeg', '.gif', '.bmp', '.tiff', '.webp')
-
-def _load_class_names_from_file(file_path):
-    """
-    Loads class names from a specified file.
-    Assumes the file contains a line like: CLASSES = ('class1', 'class2', ...)
-    """
-    class_names = None
-    try:
-        with open(file_path, 'r') as f:
-            content = f.read()
-        
-        # Use a dictionary to capture the exec'd variables
-        exec_globals = {}
-        exec(content, exec_globals)
-        
-        if 'CLASSES' in exec_globals and isinstance(exec_globals['CLASSES'], tuple):
-            class_names = exec_globals['CLASSES']
-        else:
-            raise ValueError(f"Could not find 'CLASSES' tuple in {file_path}")
-    except FileNotFoundError:
-        print(f"Error: Class names file not found at '{file_path}'")
-        sys.exit(1)
-    except Exception as e:
-        print(f"Error loading class names from {file_path}: {e}")
-        sys.exit(1)
-    return class_names
 
 def count_parameters(model):
     """

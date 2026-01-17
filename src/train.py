@@ -16,33 +16,7 @@ sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
 from model.Alexnet import AlexNet
 from model.Mobilenet import MobileNet
-from src.utils import update_results_csv, save_plots
-
-def _load_class_names_from_file(file_path):
-    """
-    Loads class names from a specified file.
-    Assumes the file contains a line like: CLASSES = ('class1', 'class2', ...)
-    """
-    class_names = None
-    try:
-        with open(file_path, 'r') as f:
-            content = f.read()
-        
-        # Use a dictionary to capture the exec'd variables
-        exec_globals = {}
-        exec(content, exec_globals)
-        
-        if 'CLASSES' in exec_globals and isinstance(exec_globals['CLASSES'], tuple):
-            class_names = exec_globals['CLASSES']
-        else:
-            raise ValueError(f"Could not find 'CLASSES' tuple in {file_path}")
-    except FileNotFoundError:
-        print(f"Error: Class names file not found at '{file_path}'")
-        sys.exit(1)
-    except Exception as e:
-        print(f"Error loading class names from {file_path}: {e}")
-        sys.exit(1)
-    return class_names
+from src.utils import update_results_csv, save_plots, _load_class_names_from_file
 
 def count_parameters(model):
     """
@@ -173,6 +147,7 @@ if __name__ == '__main__':
     LEARNING_RATE = config['training']['learning_rate']
     MODEL_NAME = config['model']['name']
     MODEL_SAVE_PATH = config['model']['save_path']
+    SAVE_MODEL = config['model'].get('save_model', True) # Get new config option
 
     # =============================================================================
     # 3. Khởi tạo Model, Loss và Optimizer
@@ -253,9 +228,12 @@ if __name__ == '__main__':
     # =============================================================================
     # 5. Lưu Model và Vẽ biểu đồ
     # =============================================================================
-    save_path = os.path.join(run_dir, MODEL_SAVE_PATH)
-    torch.save(model.state_dict(), save_path)
-    print(f"Model saved to {save_path}")
+    if SAVE_MODEL: # Conditional saving
+        save_path = os.path.join(run_dir, MODEL_SAVE_PATH)
+        torch.save(model.state_dict(), save_path)
+        print(f"Model saved to {save_path}")
+    else:
+        print("Model saving skipped as per configuration.")
 
     print("Saving plots...")
     save_plots(history_train_loss, history_val_loss, history_val_accuracy, run_dir)

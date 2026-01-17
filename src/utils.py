@@ -2,6 +2,7 @@ import os
 import csv
 import matplotlib.pyplot as plt
 from matplotlib.ticker import MaxNLocator
+import sys # Added for sys.exit
 
 def update_results_csv(epoch, train_loss, val_loss, val_accuracy, save_dir):
     """
@@ -56,3 +57,29 @@ def save_plots(history_train_loss, history_val_loss, history_val_accuracy, save_
     plt.savefig(acc_plot_path)
     plt.close() # Đóng figure
     print(f"Accuracy plot saved to {acc_plot_path}")
+
+def _load_class_names_from_file(file_path):
+    """
+    Loads class names from a specified file.
+    Assumes the file contains a line like: CLASSES = ('class1', 'class2', ...)
+    """
+    class_names = None
+    try:
+        with open(file_path, 'r') as f:
+            content = f.read()
+        
+        # Use a dictionary to capture the exec'd variables
+        exec_globals = {}
+        exec(content, exec_globals)
+        
+        if 'CLASSES' in exec_globals and isinstance(exec_globals['CLASSES'], tuple):
+            class_names = exec_globals['CLASSES']
+        else:
+            raise ValueError(f"Could not find 'CLASSES' tuple in {file_path}")
+    except FileNotFoundError:
+        print(f"Error: Class names file not found at '{file_path}'")
+        sys.exit(1)
+    except Exception as e:
+        print(f"Error loading class names from {file_path}: {e}")
+        sys.exit(1)
+    return class_names

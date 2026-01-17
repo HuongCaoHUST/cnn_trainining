@@ -1,11 +1,12 @@
 training:
-  num_epochs: 5
+  num_epochs: 1
   batch_size: 32  
   learning_rate: 0.001
 
 model:
   name: 'AlexNet'
   save_path: 'cifar_net.pth'
+  save_model: false
 
 dataset:
   name: 'CIFAR10' # 'CIFAR10' or 'MNIST'
