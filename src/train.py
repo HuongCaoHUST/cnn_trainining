@@ -18,6 +18,32 @@ from model.Alexnet import AlexNet
 from model.Mobilenet import MobileNet
 from src.utils import update_results_csv, save_plots
 
+def _load_class_names_from_file(file_path):
+    """
+    Loads class names from a specified file.
+    Assumes the file contains a line like: CLASSES = ('class1', 'class2', ...)
+    """
+    class_names = None
+    try:
+        with open(file_path, 'r') as f:
+            content = f.read()
+        
+        # Use a dictionary to capture the exec'd variables
+        exec_globals = {}
+        exec(content, exec_globals)
+        
+        if 'CLASSES' in exec_globals and isinstance(exec_globals['CLASSES'], tuple):
+            class_names = exec_globals['CLASSES']
+        else:
+            raise ValueError(f"Could not find 'CLASSES' tuple in {file_path}")
+    except FileNotFoundError:
+        print(f"Error: Class names file not found at '{file_path}'")
+        sys.exit(1)
+    except Exception as e:
+        print(f"Error loading class names from {file_path}: {e}")
+        sys.exit(1)
+    return class_names
+
 def create_run_dir(project_root):
     """
     Creates a new directory for the current run to save results.
@@ -48,7 +74,16 @@ def load_config_and_setup(project_root):
     device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
     print(f'Using device: {device}')
 
-    return config, device
+    dataset_name = config.get('dataset', {}).get('name', 'CIFAR10')
+    if dataset_name.upper() == 'MNIST':
+        class_names = [str(i) for i in range(10)]
+    else:
+        class_names_file_path = os.path.join(project_root, 'data', 'class_names')
+        class_names = _load_class_names_from_file(class_names_file_path)
+    
+    num_classes = len(class_names)
+
+    return config, device, num_classes
 
 def prepare_data(config, project_root):
     """
@@ -66,9 +101,9 @@ def prepare_data(config, project_root):
         print("Using MNIST dataset.")
         transform = transforms.Compose([
             transforms.Resize((227, 227)),
-            transforms.Grayscale(num_output_channels=3),
+            transforms.Grayscale(num_output_channels=3), # MNIST is grayscale, but AlexNet expects 3 channels
             transforms.ToTensor(),
-            transforms.Normalize((0.5, 0.5, 0.5), (0.5, 0.5, 0.5))
+            transforms.Normalize((0.5,), (0.5,)) # Changed for MNIST
         ])
         train_dataset = torchvision.datasets.MNIST(root=data_path, train=True,
                                                    download=True, transform=transform)
@@ -124,7 +159,7 @@ if __name__ == '__main__':
     # =============================================================================
     # 1. & 2. Tải cấu hình và Chuẩn bị dữ liệu
     # =============================================================================
-    config, device = load_config_and_setup(project_root)
+    config, device, num_classes = load_config_and_setup(project_root)
     train_loader, validation_loader = prepare_data(config, project_root)
 
     # Lấy các hyperparameters từ config
@@ -138,9 +173,9 @@ if __name__ == '__main__':
     # =============================================================================
     print(f"Initializing model: {MODEL_NAME}...")
     if MODEL_NAME == 'AlexNet':
-        model = AlexNet(num_classes=10).to(device)
+        model = AlexNet(num_classes=num_classes).to(device)
     elif MODEL_NAME == 'MobileNet':
-        model = MobileNet(num_classes=10).to(device)
+        model = MobileNet(num_classes=num_classes).to(device)
     else:
         print(f"Error: Model '{MODEL_NAME}' not recognized. Exiting.")
         sys.exit()

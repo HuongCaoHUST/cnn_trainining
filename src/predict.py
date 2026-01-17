@@ -18,6 +18,32 @@ from model.Mobilenet import MobileNet
 # Supported image extensions
 IMAGE_EXTENSIONS = ('.png', '.jpg', '.jpeg', '.gif', '.bmp', '.tiff', '.webp')
 
+def _load_class_names_from_file(file_path):
+    """
+    Loads class names from a specified file.
+    Assumes the file contains a line like: CLASSES = ('class1', 'class2', ...)
+    """
+    class_names = None
+    try:
+        with open(file_path, 'r') as f:
+            content = f.read()
+        
+        # Use a dictionary to capture the exec'd variables
+        exec_globals = {}
+        exec(content, exec_globals)
+        
+        if 'CLASSES' in exec_globals and isinstance(exec_globals['CLASSES'], tuple):
+            class_names = exec_globals['CLASSES']
+        else:
+            raise ValueError(f"Could not find 'CLASSES' tuple in {file_path}")
+    except FileNotFoundError:
+        print(f"Error: Class names file not found at '{file_path}'")
+        sys.exit(1)
+    except Exception as e:
+        print(f"Error loading class names from {file_path}: {e}")
+        sys.exit(1)
+    return class_names
+
 def predict_image(model, device, preprocess, class_names, input_channels, image_path, model_name):
     """
     Runs prediction on a single image using a trained model.
@@ -108,13 +134,14 @@ def predict(opt):
     model_name = config.get('model', {}).get('name', 'AlexNet')
     dataset_name = config.get('dataset', {}).get('name', 'MNIST')
     
-    # Define class names based on the dataset
+    # Define class names based on the dataset or load from file
     if dataset_name.upper() == 'MNIST':
         class_names = [str(i) for i in range(10)]
         normalize = transforms.Normalize((0.1307,), (0.3081,))
         input_channels = 1
     elif dataset_name.upper() == 'CIFAR10':
-        class_names = ('plane', 'car', 'bird', 'cat', 'deer', 'dog', 'frog', 'horse', 'ship', 'truck')
+        class_names_file_path = os.path.join(os.path.dirname(os.path.abspath(__file__)), '..', 'data', 'class_names')
+        class_names = _load_class_names_from_file(class_names_file_path)
         normalize = transforms.Normalize((0.5, 0.5, 0.5), (0.5, 0.5, 0.5))
         input_channels = 3
     else:
