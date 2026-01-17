@@ -9,6 +9,8 @@ from tqdm import tqdm
 from model.Alexnet import AlexNet
 from model.Mobilenet import MobileNet
 from model.VGG16 import VGG16
+from model.VGG16_EDGE import VGG16_EDGE
+from model.VGG16_SERVER import VGG16_SERVER
 from src.utils import update_results_csv, save_plots, count_parameters, create_run_dir
 from src.dataset import Dataset
 
@@ -65,7 +67,9 @@ class Trainer:
         model_map = {
             'AlexNet': AlexNet,
             'MobileNet': MobileNet,
-            'VGG16': VGG16
+            'VGG16': VGG16,
+            'VGG16_EDGE': VGG16_EDGE,
+            'VGG16_SERVER': VGG16_SERVER
         }
 
         if self.model_name not in model_map:
