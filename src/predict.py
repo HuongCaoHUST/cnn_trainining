@@ -7,6 +7,7 @@ from PIL import Image
 import torch.nn.functional as F
 import sys
 import os
+import time
 
 # Add project root to the Python path
 sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
@@ -14,9 +15,91 @@ sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 from model.Alexnet import AlexNet
 from model.Mobilenet import MobileNet
 
-def predict(opt):
+# Supported image extensions
+IMAGE_EXTENSIONS = ('.png', '.jpg', '.jpeg', '.gif', '.bmp', '.tiff', '.webp')
+
+def predict_image(model, device, preprocess, class_names, input_channels, image_path, model_name):
     """
     Runs prediction on a single image using a trained model.
+    """
+    try:
+        image = Image.open(image_path).convert('RGB') if input_channels == 3 else Image.open(image_path).convert('L')
+    except FileNotFoundError:
+        print(f"Error: Input image not found at '{image_path}'")
+        return None, None, None, None
+    except Exception as e:
+        print(f"Error loading image {image_path}: {e}")
+        return None, None, None, None
+
+    image_tensor = preprocess(image)
+
+    # If model expects 3 channels but input is 1, repeat the channel
+    if model.features[0].in_channels == 3 and image_tensor.shape[0] == 1:
+        image_tensor = image_tensor.repeat(3, 1, 1)
+
+    # Add batch dimension
+    image_tensor = image_tensor.unsqueeze(0).to(device)
+
+    # Perform Inference
+    start_time = time.time()
+    with torch.no_grad():
+        output = model(image_tensor)
+        probabilities = F.softmax(output, dim=1)
+        confidence, predicted_idx = torch.max(probabilities, 1)
+    end_time = time.time()
+    
+    predicted_class = class_names[predicted_idx.item()]
+    inference_time = end_time - start_time
+
+    return predicted_class, confidence.item(), inference_time, image_path
+
+def predict_directory(opt, model, device, preprocess, class_names, input_channels, model_name):
+    """
+    Runs prediction on all images in a given directory.
+    """
+    image_files = []
+    for root, _, files in os.walk(opt.source):
+        for file in files:
+            if file.lower().endswith(IMAGE_EXTENSIONS):
+                image_files.append(os.path.join(root, file))
+
+    if not image_files:
+        print(f"No supported image files found in '{opt.source}'")
+        sys.exit(1)
+
+    print(f"\n--- Predicting for images in directory: {opt.source} ---")
+    all_predictions = []
+    total_inference_time = 0
+    total_images = len(image_files)
+
+    for i, img_path in enumerate(image_files):
+        predicted_class, confidence, inference_time, _ = predict_image(
+            model, device, preprocess, class_names, input_channels, img_path, model_name
+        )
+        if predicted_class:
+            all_predictions.append({
+                "image": os.path.basename(img_path),
+                "prediction": predicted_class,
+                "confidence": confidence,
+                "inference_time": inference_time,
+                "index": i + 1,
+                "total": total_images
+            })
+            total_inference_time += inference_time
+    
+    print(f"\nModel Name: {model_name}")
+    print(f"Number of Images: {len(image_files)}")
+    print(f"Input Size: 224x224")
+    print(f"Total Inference Speed: {total_inference_time:.4f} seconds")
+    print("\nIndividual Predictions:")
+    for pred in all_predictions:
+        print(f"  [{pred['index']}/{pred['total']}] Image: {pred['image']}, Prediction: {pred['prediction']}, Confidence: {pred['confidence']:.4f}, Time: {pred['inference_time']:.4f}s")
+    print("-----------------------------------------------------")
+
+
+def predict(opt):
+    """
+    Runs prediction on a single image or a directory of images using a trained model.
     """
     # --- 1. Load Configuration and Class Names ---
     with open(opt.config, 'r') as f:
@@ -28,14 +111,10 @@ def predict(opt):
     # Define class names based on the dataset
     if dataset_name.upper() == 'MNIST':
         class_names = [str(i) for i in range(10)]
-        # MNIST images are grayscale, but AlexNet expects 3 channels.
-        # We will need to convert the input image to 3 channels.
-        # Normalization values for MNIST
         normalize = transforms.Normalize((0.1307,), (0.3081,))
         input_channels = 1
     elif dataset_name.upper() == 'CIFAR10':
         class_names = ('plane', 'car', 'bird', 'cat', 'deer', 'dog', 'frog', 'horse', 'ship', 'truck')
-        # Normalization values for CIFAR-10
         normalize = transforms.Normalize((0.5, 0.5, 0.5), (0.5, 0.5, 0.5))
         input_channels = 3
     else:
@@ -63,53 +142,35 @@ def predict(opt):
     model.eval()
 
     # --- 3. Image Preprocessing ---
-    # Define transforms
     preprocess = transforms.Compose([
         transforms.Resize((224, 224)),
         transforms.ToTensor(),
         normalize
     ])
 
-    # Load and process image
-    try:
-        image = Image.open(opt.source).convert('RGB') if input_channels == 3 else Image.open(opt.source).convert('L')
-    except FileNotFoundError:
-        print(f"Error: Input image not found at '{opt.source}'")
+    # --- 4. Handle Source (Single Image or Directory) ---
+    if os.path.isfile(opt.source):
+        print(f"--- Predicting for single image: {opt.source} ---")
+        predicted_class, confidence, inference_time, _ = predict_image(
+            model, device, preprocess, class_names, input_channels, opt.source, model_name
+        )
+        if predicted_class:
+            print(f"Model Name: {model_name}")
+            print(f"Number of Images: 1")
+            print(f"Input Size: 224x224")
+            print(f"Prediction: {predicted_class}")
+            print(f"Confidence: {confidence:.4f}")
+            print(f"Inference Speed: {inference_time:.4f} seconds")
+        print("-----------------------------------------------------")
+    elif os.path.isdir(opt.source):
+        predict_directory(opt, model, device, preprocess, class_names, input_channels, model_name)
+    else:
+        print(f"Error: Source '{opt.source}' is neither a file nor a directory.")
         sys.exit(1)
 
-    image_tensor = preprocess(image)
-
-    # If model expects 3 channels but input is 1, repeat the channel
-    if model.features[0].in_channels == 3 and image_tensor.shape[0] == 1:
-        image_tensor = image_tensor.repeat(3, 1, 1)
-
-    # Add batch dimension
-    image_tensor = image_tensor.unsqueeze(0).to(device)
-
-    # --- 4. Perform Inference ---
-    import time
-    start_time = time.time()
-    with torch.no_grad():
-        output = model(image_tensor)
-        probabilities = F.softmax(output, dim=1)
-        confidence, predicted_idx = torch.max(probabilities, 1)
-    end_time = time.time()
-    
-    predicted_class = class_names[predicted_idx.item()]
-    inference_time = end_time - start_time
-
-    # --- 5. Display Results ---
-    print(f"Model Name: {model_name}")
-    print(f"Number of Images: 1")
-    print(f"Input Size: 224x224")
-    print(f"Prediction: {predicted_class}")
-    print(f"Confidence: {confidence.item():.4f}")
-    print(f"Inference Speed: {inference_time:.4f} seconds")
-
-
 if __name__ == '__main__':
-    parser = argparse.ArgumentParser(description="Run prediction on an image.")
-    parser.add_argument('--source', type=str, required=True, help='Path to the input image.')
+    parser = argparse.ArgumentParser(description="Run prediction on an image or a directory of images.")
+    parser.add_argument('--source', type=str, required=True, help='Path to the input image or a directory of images.')
     parser.add_argument('--weights', type=str, required=True, help='Path to the trained model weights (.pth).')
     parser.add_argument('--config', type=str, default='config.yaml', help='Path to the configuration file.')
     
