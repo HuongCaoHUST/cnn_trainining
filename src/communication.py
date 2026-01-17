@@ -1,0 +1,92 @@
+import pika
+import sys
+
+class Communication:
+    def __init__(self, config):
+        """
+        Initialize Communication with the provided configuration.
+        Expects config to contain key 'rabbitmq'.
+        """
+        self.rmq_config = config.get('rabbitmq', {})
+        self.host = self.rmq_config.get('host', 'localhost')
+        self.port = self.rmq_config.get('port', 5672)
+        self.username = self.rmq_config.get('username', 'guest')
+        self.password = self.rmq_config.get('password', 'guest')
+        
+        self.connection = None
+        self.channel = None
+
+    def connect(self):
+        """
+        Establish connection to RabbitMQ server.
+        """
+        print(f"Connecting to RabbitMQ at {self.host}:{self.port}...")
+        try:
+            credentials = pika.PlainCredentials(self.username, self.password)
+            parameters = pika.ConnectionParameters(
+                host=self.host,
+                port=self.port,
+                credentials=credentials
+            )
+            self.connection = pika.BlockingConnection(parameters)
+            self.channel = self.connection.channel()
+            print("Successfully connected to RabbitMQ.")
+        except Exception as e:
+            print(f"Error connecting to RabbitMQ: {e}")
+            # Tùy chọn: raise e hoặc sys.exit(1) nếu kết nối là bắt buộc
+            raise e
+
+    def close(self):
+        """Safely close the RabbitMQ connection."""
+        if self.connection and not self.connection.is_closed:
+            self.connection.close()
+            print("RabbitMQ connection closed.")
+
+    def create_queue(self, queue_name):
+        """
+        Create (declare) a new queue.
+        """
+        if self.channel:
+            # queue_declare is idempotent, if the queue already exists it will do nothing (unless parameters are different)
+            self.channel.queue_declare(queue=queue_name)
+            print(f"Queue '{queue_name}' created/declared.")
+        else:
+            print("Error: Channel is not initialized. Please call connect() first.")
+
+    def delete_old_queues(self, queue_names):
+        """
+        Delete a list of old queues.
+        Input: queue_names (list of strings) - List of queue names to delete.
+        """
+        if self.channel:
+            for queue in queue_names:
+                self.channel.queue_delete(queue=queue)
+                print(f"Queue '{queue}' deleted.")
+        else:
+            print("Error: Channel is not initialized. Please call connect() first.")
+
+    def publish_message(self, queue_name, message):
+        """
+        Publish a message to a queue.
+        """
+        if self.channel:
+            self.channel.basic_publish(exchange='',
+                                       routing_key=queue_name,
+                                       body=message)
+            print(f" [x] Sent message to '{queue_name}'")
+        else:
+            print("Error: Channel is not initialized. Please call connect() first.")
+
+    def consume_messages(self, queue_name, callback):
+        """
+        Consume messages from a queue.
+        This is a blocking call.
+        """
+        if self.channel:
+            self.channel.basic_consume(queue=queue_name,
+                                       on_message_callback=callback,
+                                       auto_ack=True)
+            print(' [*] Waiting for messages. To exit press CTRL+C')
+            self.channel.start_consuming()
+        else:
+            print("Error: Channel is not initialized. Please call connect() first.")
