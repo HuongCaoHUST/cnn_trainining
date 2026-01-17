@@ -3,6 +3,8 @@ import csv
 import matplotlib.pyplot as plt
 from matplotlib.ticker import MaxNLocator
 import sys # Added for sys.exit
+import yaml
+import torch
 
 def update_results_csv(epoch, train_loss, val_loss, val_accuracy, save_dir):
     """
@@ -89,3 +91,44 @@ def count_parameters(model):
     Counts the total number of trainable parameters in a PyTorch model.
     """
     return sum(p.numel() for p in model.parameters() if p.requires_grad)
+
+def create_run_dir(project_root):
+    """
+    Creates a new directory for the current run to save results.
+    """
+    results_dir = os.path.join(project_root, 'results')
+    os.makedirs(results_dir, exist_ok=True)
+
+    # Find the next available run directory
+    run_idx = 1
+    while os.path.exists(os.path.join(results_dir, f'run_{run_idx}')):
+        run_idx += 1
+    
+    run_dir = os.path.join(results_dir, f'run_{run_idx}')
+    os.makedirs(run_dir)
+    
+    print(f"Created run directory: {run_dir}")
+    return run_dir
+
+def load_config_and_setup(project_root):
+    """
+    Tải cấu hình, thiết lập device và trả về các thông số.
+    """
+    # Tải cấu hình từ file config.yaml
+    config_path = os.path.join(project_root, 'config.yaml')
+    with open(config_path, 'r') as f:
+        config = yaml.safe_load(f)
+
+    device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
+    print(f'Using device: {device}')
+
+    dataset_name = config.get('dataset', {}).get('name', 'CIFAR10')
+    if dataset_name.upper() == 'MNIST':
+        class_names = [str(i) for i in range(10)]
+    else:
+        class_names_file_path = os.path.join(project_root, 'data', 'class_names.py')
+        class_names = _load_class_names_from_file(class_names_file_path)
+    
+    num_classes = len(class_names)
+
+    return config, device, num_classes

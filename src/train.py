@@ -1,124 +1,14 @@
 import torch
 import torch.nn as nn
-import torchvision
-import torchvision.transforms as transforms
 import torch.optim as optim
 import sys
 import os
-import yaml
-import numpy as np
 from tqdm import tqdm
-from torch.utils.data import SubsetRandomSampler
 
 from model.Alexnet import AlexNet
 from model.Mobilenet import MobileNet
-from src.utils import update_results_csv, save_plots, _load_class_names_from_file, count_parameters
-
-def create_run_dir(project_root):
-    """
-    Creates a new directory for the current run to save results.
-    """
-    results_dir = os.path.join(project_root, 'results')
-    os.makedirs(results_dir, exist_ok=True)
-
-    # Find the next available run directory
-    run_idx = 1
-    while os.path.exists(os.path.join(results_dir, f'run_{run_idx}')):
-        run_idx += 1
-    
-    run_dir = os.path.join(results_dir, f'run_{run_idx}')
-    os.makedirs(run_dir)
-    
-    print(f"Created run directory: {run_dir}")
-    return run_dir
-
-def load_config_and_setup(project_root):
-    """
-    Tải cấu hình, thiết lập device và trả về các thông số.
-    """
-    # Tải cấu hình từ file config.yaml
-    config_path = os.path.join(project_root, 'config.yaml')
-    with open(config_path, 'r') as f:
-        config = yaml.safe_load(f)
-
-    device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
-    print(f'Using device: {device}')
-
-    dataset_name = config.get('dataset', {}).get('name', 'CIFAR10')
-    if dataset_name.upper() == 'MNIST':
-        class_names = [str(i) for i in range(10)]
-    else:
-        class_names_file_path = os.path.join(project_root, 'data', 'class_names.py')
-        class_names = _load_class_names_from_file(class_names_file_path)
-    
-    num_classes = len(class_names)
-
-    return config, device, num_classes
-
-def prepare_data(config, project_root):
-    """
-    Chuẩn bị và chia dữ liệu, trả về DataLoaders.
-    """
-    print("Preparing data...")
-    data_path = os.path.join(project_root, 'data')
-    d_config = config['dataset']
-    dataset_name = d_config.get('name', 'CIFAR10') # Default to CIFAR10
-    validation_split = d_config['validation_split']
-    subset_fraction = d_config.get('subset_fraction', 1.0) # Dùng get để tương thích ngược
-    batch_size = config['training']['batch_size']
-
-    if dataset_name == 'MNIST':
-        print("Using MNIST dataset.")
-        transform = transforms.Compose([
-            transforms.Resize((227, 227)),
-            transforms.Grayscale(num_output_channels=3), # MNIST is grayscale, but AlexNet expects 3 channels
-            transforms.ToTensor(),
-            transforms.Normalize((0.5,), (0.5,)) # Changed for MNIST
-        ])
-        train_dataset = torchvision.datasets.MNIST(root=data_path, train=True,
-                                                   download=True, transform=transform)
-    elif dataset_name == 'CIFAR10':
-        print("Using CIFAR10 dataset.")
-        transform = transforms.Compose([
-            transforms.Resize((227, 227)),
-            transforms.ToTensor(),
-            transforms.Normalize((0.5, 0.5, 0.5), (0.5, 0.5, 0.5))
-        ])
-        train_dataset = torchvision.datasets.CIFAR10(root=data_path, train=True,
-                                                     download=True, transform=transform)
-    else:
-        print(f"Error: Dataset '{dataset_name}' not recognized. Exiting.")
-        sys.exit()
-
-    # Tạo samplers để chia train/validation
-    num_train = len(train_dataset)
-    indices = list(range(num_train))
-    split = int(np.floor(validation_split * num_train))
-    
-    np.random.seed(42) # Để đảm bảo chia giống nhau mỗi lần chạy
-    np.random.shuffle(indices)
-    
-    train_indices, val_indices = indices[split:], indices[:split]
-    
-    # Lấy một phần nhỏ của dataset nếu được chỉ định
-    if subset_fraction < 1.0:
-        train_subset_size = int(len(train_indices) * subset_fraction)
-        val_subset_size = int(len(val_indices) * subset_fraction)
-        train_indices = train_indices[:train_subset_size]
-        val_indices = val_indices[:val_subset_size]
-        print(f"Using a subset of the data: {subset_fraction*100:.1f}%")
-
-    train_sampler = SubsetRandomSampler(train_indices)
-    valid_sampler = SubsetRandomSampler(val_indices)
-
-    train_loader = torch.utils.data.DataLoader(train_dataset, batch_size=batch_size,
-                                               sampler=train_sampler, num_workers=2)
-    validation_loader = torch.utils.data.DataLoader(train_dataset, batch_size=batch_size,
-                                                    sampler=valid_sampler, num_workers=2)
-    print("Data prepared.")
-    print(f"{len(train_indices)} training images, {len(val_indices)} validation images.")
-    
-    return train_loader, validation_loader
+from src.utils import update_results_csv, save_plots, count_parameters, create_run_dir, load_config_and_setup
+from src.dataset_loader import DatasetLoader
 
 if __name__ == '__main__':
     project_root = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
@@ -130,7 +20,9 @@ if __name__ == '__main__':
     # 1. & 2. Tải cấu hình và Chuẩn bị dữ liệu
     # =============================================================================
     config, device, num_classes = load_config_and_setup(project_root)
-    train_loader, validation_loader = prepare_data(config, project_root)
+    
+    dataset_loader = DatasetLoader(config, project_root)
+    train_loader, validation_loader = dataset_loader.get_loaders()
 
     # Lấy các hyperparameters từ config
     NUM_EPOCHS = config['training']['num_epochs']

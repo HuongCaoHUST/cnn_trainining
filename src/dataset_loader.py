@@ -1,0 +1,127 @@
+import os
+import sys
+import numpy as np
+import torch
+import torchvision
+import torchvision.transforms as transforms
+from torch.utils.data import DataLoader, random_split, Subset
+
+class DatasetLoader:
+    """
+    Handles the preparation, transformation, and loading of datasets.
+    """
+    def __init__(self, config, project_root):
+        self.config = config
+        self.project_root = project_root
+        self.data_path = os.path.join(project_root, 'data')
+        
+        # Extract configuration
+        self.dataset_config = config.get('dataset', {})
+        self.dataset_name = self.dataset_config.get('name', 'CIFAR10')
+        self.batch_size = config['training']['batch_size']
+        self.validation_split = self.dataset_config.get('validation_split', 0.1)
+        self.subset_fraction = self.dataset_config.get('subset_fraction', 1.0)
+        self.num_workers = 2
+        
+        # Các thuộc tính lưu trữ Dataset và DataLoader riêng biệt
+        self.train_dataset = None
+        self.val_dataset = None
+        self.train_loader = None
+        self.val_loader = None
+
+    def get_transforms(self):
+        """Defines transforms based on the dataset."""
+        if self.dataset_name == 'MNIST':
+            # MNIST is grayscale, but models like AlexNet often expect 3 channels.
+            return transforms.Compose([
+                transforms.Resize((227, 227)),
+                transforms.Grayscale(num_output_channels=3),
+                transforms.ToTensor(),
+                transforms.Normalize((0.5,), (0.5,))
+            ])
+        elif self.dataset_name == 'CIFAR10':
+            return transforms.Compose([
+                transforms.Resize((227, 227)),
+                transforms.ToTensor(),
+                transforms.Normalize((0.5, 0.5, 0.5), (0.5, 0.5, 0.5))
+            ])
+        else:
+            raise ValueError(f"Dataset '{self.dataset_name}' not recognized.")
+
+    def _load_raw_dataset(self, transform):
+        """Downloads and loads the dataset object."""
+        if self.dataset_name == 'MNIST':
+            print("Using MNIST dataset.")
+            return torchvision.datasets.MNIST(root=self.data_path, train=True,
+                                              download=True, transform=transform)
+        elif self.dataset_name == 'CIFAR10':
+            print("Using CIFAR10 dataset.")
+            return torchvision.datasets.CIFAR10(root=self.data_path, train=True,
+                                                download=True, transform=transform)
+        else:
+            print(f"Error: Dataset '{self.dataset_name}' not recognized. Exiting.")
+            sys.exit(1)
+
+    def prepare_datasets(self):
+        """
+        Chuẩn bị dữ liệu: Tải về, chia tách Train/Val và tạo các object Dataset (Subset).
+        """
+        if self.train_dataset is not None:
+            return self.train_dataset, self.val_dataset
+
+        print("Preparing datasets...")
+        transform = self.get_transforms()
+        full_dataset = self._load_raw_dataset(transform)
+
+        # Tính toán kích thước chia
+        total_size = len(full_dataset)
+        val_size = int(np.floor(self.validation_split * total_size))
+        train_size = total_size - val_size
+
+        # Chia dataset sử dụng random_split (chuẩn PyTorch)
+        generator = torch.Generator().manual_seed(42) # Đảm bảo tính tái lập
+        self.train_dataset, self.val_dataset = random_split(
+            full_dataset, [train_size, val_size], generator=generator
+        )
+
+        # Xử lý lấy tập con (nếu cấu hình yêu cầu chạy thử trên ít dữ liệu)
+        if self.subset_fraction < 1.0:
+            self.train_dataset = self._create_subset(self.train_dataset, self.subset_fraction)
+            self.val_dataset = self._create_subset(self.val_dataset, self.subset_fraction)
+            print(f"Using a subset of the data: {self.subset_fraction*100:.1f}%")
+
+        print(f"Datasets prepared: {len(self.train_dataset)} training, {len(self.val_dataset)} validation.")
+        return self.train_dataset, self.val_dataset
+
+    def _create_subset(self, dataset, fraction):
+        """Hàm phụ trợ để cắt nhỏ dataset."""
+        subset_size = int(len(dataset) * fraction)
+        indices = list(range(subset_size))
+        return Subset(dataset, indices)
+
+    def get_loaders(self):
+        """
+        Tạo và trả về Train và Validation DataLoaders từ các Dataset đã chuẩn bị.
+        """
+        if self.train_loader is not None:
+            return self.train_loader, self.val_loader
+
+        # Đảm bảo dataset đã có
+        self.prepare_datasets()
+
+        print("Creating DataLoaders...")
+        self.train_loader = DataLoader(
+            self.train_dataset, 
+            batch_size=self.batch_size, 
+            shuffle=True, 
+            num_workers=self.num_workers
+        )
+        
+        self.val_loader = DataLoader(
+            self.val_dataset, 
+            batch_size=self.batch_size, 
+            shuffle=False, 
+            num_workers=self.num_workers
+        )
+        
+        return self.train_loader, self.val_loader
