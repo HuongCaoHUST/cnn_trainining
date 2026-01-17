@@ -4,9 +4,9 @@ import numpy as np
 import torch
 import torchvision
 import torchvision.transforms as transforms
-from torch.utils.data import DataLoader, random_split, Subset
+from torch.utils.data import random_split, Subset
 
-class DatasetLoader:
+class Dataset:
     """
     Handles the preparation, transformation, and loading of datasets.
     """
@@ -18,16 +18,12 @@ class DatasetLoader:
         # Extract configuration
         self.dataset_config = config.get('dataset', {})
         self.dataset_name = self.dataset_config.get('name', 'CIFAR10')
-        self.batch_size = config['training']['batch_size']
         self.validation_split = self.dataset_config.get('validation_split', 0.1)
         self.subset_fraction = self.dataset_config.get('subset_fraction', 1.0)
-        self.num_workers = 2
         
         # Các thuộc tính lưu trữ Dataset và DataLoader riêng biệt
         self.train_dataset = None
         self.val_dataset = None
-        self.train_loader = None
-        self.val_loader = None
 
     def get_transforms(self):
         """Defines transforms based on the dataset."""
@@ -98,30 +94,3 @@ class DatasetLoader:
         subset_size = int(len(dataset) * fraction)
         indices = list(range(subset_size))
         return Subset(dataset, indices)
-
-    def get_loaders(self):
-        """
-        Tạo và trả về Train và Validation DataLoaders từ các Dataset đã chuẩn bị.
-        """
-        if self.train_loader is not None:
-            return self.train_loader, self.val_loader
-
-        # Đảm bảo dataset đã có
-        self.prepare_datasets()
-
-        print("Creating DataLoaders...")
-        self.train_loader = DataLoader(
-            self.train_dataset, 
-            batch_size=self.batch_size, 
-            shuffle=True, 
-            num_workers=self.num_workers
-        )
-        
-        self.val_loader = DataLoader(
-            self.val_dataset, 
-            batch_size=self.batch_size, 
-            shuffle=False, 
-            num_workers=self.num_workers
-        )
-        
-        return self.train_loader, self.val_loader

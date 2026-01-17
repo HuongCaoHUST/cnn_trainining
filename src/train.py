@@ -3,109 +3,152 @@ import torch.nn as nn
 import torch.optim as optim
 import sys
 import os
+from torch.utils.data import DataLoader
 from tqdm import tqdm
 
 from model.Alexnet import AlexNet
 from model.Mobilenet import MobileNet
 from src.utils import update_results_csv, save_plots, count_parameters, create_run_dir
-from src.dataset_loader import DatasetLoader
+from src.dataset import Dataset
 
-def train(config, device, num_classes, project_root):
-    # Create a new run directory
-    run_dir = create_run_dir(project_root)
-    
-    # Create Dataloader
-    dataset_loader = DatasetLoader(config, project_root)
-    train_loader, validation_loader = dataset_loader.get_loaders()
+class Trainer:
+    def __init__(self, config, device, num_classes, project_root):
+        self.config = config
+        self.device = device
+        self.num_classes = num_classes
+        self.project_root = project_root
+        
+        # Set Hyperparameters
+        self.run_dir = create_run_dir(project_root)
+        self.batch_size = config['training']['batch_size']
+        self.num_workers = 2
+        self.num_epochs = config['training']['num_epochs']
+        self.learning_rate = config['training']['learning_rate']
+        self.model_name = config['model']['name']
+        self.model_save_path = config['model']['save_path']
+        self.save_model_enabled = config['model'].get('save_model', True)
 
-    # Set yperparameters
-    NUM_EPOCHS = config['training']['num_epochs']
-    LEARNING_RATE = config['training']['learning_rate']
-    MODEL_NAME = config['model']['name']
-    MODEL_SAVE_PATH = config['model']['save_path']
-    SAVE_MODEL = config['model'].get('save_model', True) # Get new config option
+        # Load Dataset
+        self.dataset_loader = Dataset(config, project_root)
+        self.train_dataset, self.val_dataset = self.dataset_loader.prepare_datasets()
+        
+        # Create Dataloader
+        print("Creating DataLoaders...")
+        self.train_loader = DataLoader(
+            self.train_dataset, 
+            batch_size=self.batch_size, 
+            shuffle=True, 
+            num_workers=self.num_workers
+        )
+        self.validation_loader = DataLoader(
+            self.val_dataset, 
+            batch_size=self.batch_size, 
+            shuffle=False, 
+            num_workers=self.num_workers
+        )
 
-    # Initialize model
-    print(f"Initializing model: {MODEL_NAME}...")
-    model_map = {
-        'AlexNet': AlexNet,
-        'MobileNet': MobileNet
-    }
+        # Initialize model
+        self.model = self._init_model()
+        
+        # Init Loss and Optimizer
+        self.criterion = nn.CrossEntropyLoss()
+        self.optimizer = optim.Adam(self.model.parameters(), lr=self.learning_rate)
 
-    if MODEL_NAME not in model_map:
-        print(f"Error: Model '{MODEL_NAME}' not recognized. Supported models: {list(model_map.keys())}")
-        sys.exit(1)
-    model = model_map[MODEL_NAME](num_classes=num_classes).to(device)
+        # History tracking
+        self.history_train_loss = []
+        self.history_val_loss = []
+        self.history_val_accuracy = []
 
-    print(f"Model Parameters: {count_parameters(model):,}") # Log model parameters here
-    print("Model initialized.")
+    def _init_model(self):
+        print(f"Initializing model: {self.model_name}...")
+        model_map = {
+            'AlexNet': AlexNet,
+            'MobileNet': MobileNet
+        }
 
-    # Init Loss and Optimizer
-    criterion = nn.CrossEntropyLoss()
-    optimizer = optim.Adam(model.parameters(), lr=LEARNING_RATE)
+        if self.model_name not in model_map:
+            print(f"Error: Model '{self.model_name}' not recognized. Supported models: {list(model_map.keys())}")
+            sys.exit(1)
+        
+        model = model_map[self.model_name](num_classes=self.num_classes).to(self.device)
+        print(f"Model Parameters: {count_parameters(model):,}")
+        print("Model initialized.")
+        return model
 
-    # Training Loop
-    print("Starting Training...")
-    history_train_loss = []
-    history_val_loss = []
-    history_val_accuracy = []
-
-    for epoch in range(NUM_EPOCHS):
-        # Training
-        model.train()
+    def train_one_epoch(self, epoch):
+        self.model.train()
         running_loss = 0.0
-        train_progress_bar = tqdm(train_loader, desc=f"Epoch {epoch+1}/{NUM_EPOCHS} [Train]")
+        train_progress_bar = tqdm(self.train_loader, desc=f"Epoch {epoch+1}/{self.num_epochs} [Train]")
+        
         for images, labels in train_progress_bar:
-            images = images.to(device)
-            labels = labels.to(device)
+            images = images.to(self.device)
+            labels = labels.to(self.device)
 
-            outputs = model(images)
-            loss = criterion(outputs, labels)
+            outputs = self.model(images)
+            loss = self.criterion(outputs, labels)
 
-            optimizer.zero_grad()
+            self.optimizer.zero_grad()
             loss.backward()
-            optimizer.step()
+            self.optimizer.step()
             
             running_loss += loss.item()
 
-        avg_train_loss = running_loss / len(train_loader)
-        history_train_loss.append(avg_train_loss)
+        avg_train_loss = running_loss / len(self.train_loader)
+        self.history_train_loss.append(avg_train_loss)
+        return avg_train_loss
 
-        # Validation
-        model.eval()
+    def validate_one_epoch(self, epoch):
+        self.model.eval()
         val_loss = 0.0
         correct = 0
         total = 0
+        
         with torch.no_grad():
-            val_progress_bar = tqdm(validation_loader, desc=f"Epoch {epoch+1}/{NUM_EPOCHS} [Val]")
+            val_progress_bar = tqdm(self.validation_loader, desc=f"Epoch {epoch+1}/{self.num_epochs} [Val]")
             for images, labels in val_progress_bar:
-                images = images.to(device)
-                labels = labels.to(device)
-                outputs = model(images)
-                loss = criterion(outputs, labels)
+                images = images.to(self.device)
+                labels = labels.to(self.device)
+                outputs = self.model(images)
+                loss = self.criterion(outputs, labels)
                 val_loss += loss.item()
                 _, predicted = torch.max(outputs.data, 1)
                 total += labels.size(0)
                 correct += (predicted == labels).sum().item()
 
-        avg_val_loss = val_loss / len(validation_loader)
+        avg_val_loss = val_loss / len(self.validation_loader)
         val_accuracy = 100 * correct / total
-        history_val_loss.append(avg_val_loss)
-        history_val_accuracy.append(val_accuracy)
         
-        # Log to CSV
-        update_results_csv(epoch + 1, avg_train_loss, avg_val_loss, val_accuracy, run_dir)
-        print(f'Epoch [{epoch+1}/{NUM_EPOCHS}] -> Train Loss: {avg_train_loss:.4f} | Val Loss: {avg_val_loss:.4f}, Val Acc: {val_accuracy:.2f}%')
-    print("Finished Training.")
+        self.history_val_loss.append(avg_val_loss)
+        self.history_val_accuracy.append(val_accuracy)
+        
+        return avg_val_loss, val_accuracy
 
-    # Save model
-    if SAVE_MODEL: # Conditional saving
-        save_path = os.path.join(run_dir, MODEL_SAVE_PATH)
-        torch.save(model.state_dict(), save_path)
-        print(f"Model saved to {save_path}")
-    else:
-        print("Model saving skipped as per configuration.")
+    def post_processing(self):
+        # Save model
+        if self.save_model_enabled:
+            save_path = os.path.join(self.run_dir, self.model_save_path)
+            torch.save(self.model.state_dict(), save_path)
+            print(f"Model saved to {save_path}")
+        else:
+            print("Model saving skipped as per configuration.")
 
-    print("Saving plots...")
-    save_plots(history_train_loss, history_val_loss, history_val_accuracy, run_dir)
-    print("Plots saved.")
+        print("Saving plots...")
+        save_plots(self.history_train_loss, self.history_val_loss, self.history_val_accuracy, self.run_dir)
+        print("Plots saved.")
+
+    def run(self):
+        print("Starting Training...")
+        for epoch in range(self.num_epochs):
+            avg_train_loss = self.train_one_epoch(epoch)
+            avg_val_loss, val_accuracy = self.validate_one_epoch(epoch)
+            
+            # Log to CSV
+            update_results_csv(epoch + 1, avg_train_loss, avg_val_loss, val_accuracy, self.run_dir)
+            print(f'Epoch [{epoch+1}/{self.num_epochs}] -> Train Loss: {avg_train_loss:.4f} | Val Loss: {avg_val_loss:.4f}, Val Acc: {val_accuracy:.2f}%')
+        
+        print("Finished Training.")
+        self.post_processing()
+
+def train(config, device, num_classes, project_root):
+    trainer = Trainer(config, device, num_classes, project_root)
+    trainer.run()
