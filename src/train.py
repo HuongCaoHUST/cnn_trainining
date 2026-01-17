@@ -10,19 +10,9 @@ import numpy as np
 from tqdm import tqdm
 from torch.utils.data import SubsetRandomSampler
 
-# Thêm đường dẫn thư mục gốc của dự án vào sys.path
-# để có thể import các module từ thư mục 'model'
-sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
-
 from model.Alexnet import AlexNet
 from model.Mobilenet import MobileNet
-from src.utils import update_results_csv, save_plots, _load_class_names_from_file
-
-def count_parameters(model):
-    """
-    Counts the total number of trainable parameters in a PyTorch model.
-    """
-    return sum(p.numel() for p in model.parameters() if p.requires_grad)
+from src.utils import update_results_csv, save_plots, _load_class_names_from_file, count_parameters
 
 def create_run_dir(project_root):
     """

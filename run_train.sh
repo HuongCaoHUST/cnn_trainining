@@ -3,8 +3,7 @@
 echo "Starting model training..."
 echo "=========================================="
 
-# Chạy file train.py bằng python
-python src/train.py
+python -m src.train
 
 echo "=========================================="
 echo "Training finished."

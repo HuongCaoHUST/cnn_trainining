@@ -1,0 +1,10 @@
+version: "3.8"
+
+services:
+  torch:
+    build: .
+    container_name: torch_cpu
+    volumes:
+      - ${PWD}:/workspace
+    tty: true
+    stdin_open: true

@@ -14,16 +14,10 @@ sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
 from model.Alexnet import AlexNet
 from model.Mobilenet import MobileNet
-from src.utils import _load_class_names_from_file # Import from utils
+from src.utils import _load_class_names_from_file, count_parameters # Import from utils
 
 # Supported image extensions
 IMAGE_EXTENSIONS = ('.png', '.jpg', '.jpeg', '.gif', '.bmp', '.tiff', '.webp')
-
-def count_parameters(model):
-    """
-    Counts the total number of trainable parameters in a PyTorch model.
-    """
-    return sum(p.numel() for p in model.parameters() if p.requires_grad)
 
 def predict_image(model, device, preprocess, class_names, input_channels, image_path):
     """
