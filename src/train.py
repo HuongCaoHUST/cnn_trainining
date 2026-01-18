@@ -3,6 +3,7 @@ import torch.nn as nn
 import torch.optim as optim
 import sys
 import os
+import json
 from torch.utils.data import DataLoader
 from tqdm import tqdm
 
@@ -13,6 +14,7 @@ from model.VGG16_EDGE import VGG16_EDGE
 from model.VGG16_SERVER import VGG16_SERVER
 from src.utils import update_results_csv, save_plots, count_parameters, create_run_dir
 from src.dataset import Dataset
+from src.communication import Communication
 
 class Trainer:
     def __init__(self, config, device, num_classes, project_root):
@@ -30,6 +32,9 @@ class Trainer:
         self.model_name = config['model']['name']
         self.model_save_path = config['model']['save_path']
         self.save_model_enabled = config['model'].get('save_model', True)
+
+        # Initialize RabbitMQ connection
+        self.comm = Communication(config)
 
         # Load Dataset
         self.dataset_loader = Dataset(config, project_root)
@@ -144,6 +149,9 @@ class Trainer:
 
     def run(self):
         print("Starting Training...")
+        self.comm.connect()
+        self.comm.create_queue('intermediate_queue')
+
         for epoch in range(self.num_epochs):
             avg_train_loss = self.train_one_epoch(epoch)
             avg_val_loss, val_accuracy = self.validate_one_epoch(epoch)
@@ -153,6 +161,7 @@ class Trainer:
             print(f'Epoch [{epoch+1}/{self.num_epochs}] -> Train Loss: {avg_train_loss:.4f} | Val Loss: {avg_val_loss:.4f}, Val Acc: {val_accuracy:.2f}%')
         
         print("Finished Training.")
+        self.comm.close()
         self.post_processing()
 
 def train(config, device, num_classes, project_root):
