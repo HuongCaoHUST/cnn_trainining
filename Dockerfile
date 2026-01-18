@@ -6,6 +6,7 @@ RUN pip install --no-cache-dir \
     numpy \
     opencv-python \
     matplotlib \
-    jupyter
+    jupyter\
+    pika
 
 CMD ["bash"]
