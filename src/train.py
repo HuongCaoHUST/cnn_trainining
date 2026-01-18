@@ -268,7 +268,7 @@ class TrainerServer:
             self.comm.publish_message('edge_queue', pickle.dumps(response))
 
             running_loss += loss.item()
-        return running_loss / 2
+        return running_loss / len(train_progress_bar)
 
     def validate_one_epoch(self, epoch):
         self.model.eval()
