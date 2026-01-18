@@ -6,8 +6,8 @@ training:
   momentum: 0.9
 
 model:
-  edge: 'VGG16_EDGE'
-  server: 'VGG16_SERVER'
+  edge: 'AlexNet_EDGE'
+  server: 'AlexNet_SERVER'
   save_path: 'cifar_net.pth'
   save_model: false
 

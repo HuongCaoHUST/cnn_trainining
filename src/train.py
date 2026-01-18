@@ -9,6 +9,8 @@ from torch.utils.data import DataLoader
 from tqdm import tqdm
 
 from model.Alexnet import AlexNet
+from model.Alexnet_EDGE import AlexNet_EDGE
+from model.Alexnet_SERVER import AlexNet_SERVER
 from model.Mobilenet import MobileNet
 from model.VGG16 import VGG16
 from model.VGG16_EDGE import VGG16_EDGE
@@ -26,7 +28,7 @@ class TrainerEdge:
         self.project_root = project_root
         
         # Set Hyperparameters
-        self.run_dir = create_run_dir(project_root)
+        # self.run_dir = create_run_dir(project_root)
         self.batch_size = config['training']['batch_size']
         self.num_workers = 0
         self.num_epochs = config['training']['num_epochs']
@@ -79,6 +81,9 @@ class TrainerEdge:
     def _init_model(self):
         print(f"Initializing model: {self.model_name}...")
         model_map = {
+            'AlexNet': AlexNet,
+            'AlexNet_EDGE': AlexNet_EDGE,
+            'AlexNet_SERVER': AlexNet_SERVER,
             'AlexNet': AlexNet,
             'MobileNet': MobileNet,
             'VGG16': VGG16,
@@ -211,6 +216,9 @@ class TrainerServer:
     def _init_model(self):
         print(f"Initializing model: {self.model_name}...")
         model_map = {
+            'AlexNet': AlexNet,
+            'AlexNet_EDGE': AlexNet_EDGE,
+            'AlexNet_SERVER': AlexNet_SERVER,
             'AlexNet': AlexNet,
             'MobileNet': MobileNet,
             'VGG16': VGG16,
