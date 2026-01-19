@@ -1,7 +1,8 @@
 import pika
-import os
 import sys
 import time
+import pickle
+import os
 
 class Communication:
     def __init__(self, config):
@@ -124,10 +125,19 @@ class Communication:
         else:
             print("Error: Channel is not initialized. Please call connect() first.")
 
+    def send_training_metadata(self, queue_name, nb_train, nb_val):
+        """
+        Sends training metadata (number of training and validation batches) to a queue.
+        """
+        payload = {
+            'nb_train': nb_train,
+            'nb_val': nb_val
+        }
+        print("Payload: ", payload)
+        self.publish_message(queue_name, pickle.dumps(payload))
+
     def publish_model(self, model_path, queue_name):
-        """
-        Đọc file model từ đường dẫn và gửi dữ liệu binary qua RabbitMQ.
-        """
+
         try:
             if not os.path.exists(model_path):
                 print(f"Error: Model file not found at {model_path}")

@@ -10,7 +10,7 @@ model:
   edge: 'AlexNet_EDGE'
   server: 'AlexNet_SERVER'
   save_path: 'cifar_net.pth'
-  save_model: false
+  save_model: true
 
 dataset:
   data: 'CIFAR10' # 'CIFAR10' or 'MNIST'

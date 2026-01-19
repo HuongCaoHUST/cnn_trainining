@@ -179,6 +179,10 @@ class TrainerEdge:
         print("Starting Training...")
         self.comm.connect()
 
+        nb_train = len(self.train_loader)
+        nb_val = len(self.validation_loader)
+        self.comm.send_training_metadata('server_queue', nb_train, nb_val)
+
         for epoch in range(self.num_epochs):
             avg_train_loss = self.train_one_epoch(epoch)
             print(f'Epoch [{epoch+1}/{self.num_epochs}] -> Train Loss: {avg_train_loss:.4f}')
