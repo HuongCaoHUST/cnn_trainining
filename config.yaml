@@ -13,7 +13,7 @@ model:
   save_model: false
 
 dataset:
-  name: 'CIFAR10' # 'CIFAR10' or 'MNIST'
+  data: 'CIFAR10' # 'CIFAR10' or 'MNIST'
   validation_split: 0.1
   subset_fraction: 1
 
