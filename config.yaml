@@ -4,6 +4,7 @@ training:
   learning_rate: 0.001
   optimizer: 'SGD' # Adam or SGD
   momentum: 0.9
+  num_workers: 0
 
 model:
   edge: 'AlexNet_EDGE'

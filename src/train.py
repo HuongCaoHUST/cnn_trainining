@@ -30,7 +30,7 @@ class TrainerEdge:
         # Set Hyperparameters
         # self.run_dir = create_run_dir(project_root)
         self.batch_size = config['training']['batch_size']
-        self.num_workers = 0
+        self.num_workers = config['training'].get('num_workers', 0)
         self.num_epochs = config['training']['num_epochs']
         self.learning_rate = config['training']['learning_rate']
         self.optimizer_name = config['training'].get('optimizer', 'Adam')
@@ -184,7 +184,7 @@ class TrainerServer:
         # Set Hyperparameters
         self.run_dir = create_run_dir(project_root)
         self.batch_size = config['training']['batch_size']
-        self.num_workers = 0
+        self.num_workers = config['training'].get('num_workers', 0)
         self.num_epochs = config['training']['num_epochs']
         self.learning_rate = config['training']['learning_rate']
         self.optimizer_name = config['training'].get('optimizer', 'Adam')
