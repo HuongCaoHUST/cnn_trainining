@@ -133,7 +133,6 @@ class Communication:
             'nb_train': nb_train,
             'nb_val': nb_val
         }
-        print("Payload: ", payload)
         self.publish_message(queue_name, pickle.dumps(payload))
 
     def publish_model(self, model_path, queue_name):

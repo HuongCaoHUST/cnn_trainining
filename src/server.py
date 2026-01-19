@@ -12,3 +12,7 @@ class Server:
         self.comm.create_queue('intermediate_queue')
         self.comm.create_queue('edge_queue')
         self.comm.create_queue('server_queue')
+        self.comm.consume_messages('server_queue', self.on_message)
+
+    def on_message(self, ch, method, properties, body):
+        print("Message received in server.")
