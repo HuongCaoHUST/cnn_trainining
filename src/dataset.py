@@ -17,7 +17,7 @@ class Dataset:
         
         # Extract configuration
         self.dataset_config = config.get('dataset', {})
-        self.dataset_name = self.dataset_config.get('name', 'CIFAR10')
+        self.data = self.dataset_config.get('data', 'CIFAR10')
         self.validation_split = self.dataset_config.get('validation_split', 0.1)
         self.subset_fraction = self.dataset_config.get('subset_fraction', 1.0)
         
@@ -27,7 +27,7 @@ class Dataset:
 
     def get_transforms(self):
         """Defines transforms based on the dataset."""
-        if self.dataset_name == 'MNIST':
+        if self.data == 'MNIST':
             # MNIST is grayscale, but models like AlexNet often expect 3 channels.
             return transforms.Compose([
                 transforms.Resize((227, 227)),
@@ -35,27 +35,27 @@ class Dataset:
                 transforms.ToTensor(),
                 transforms.Normalize((0.5,), (0.5,))
             ])
-        elif self.dataset_name == 'CIFAR10':
+        elif self.data == 'CIFAR10':
             return transforms.Compose([
                 transforms.Resize((227, 227)),
                 transforms.ToTensor(),
                 transforms.Normalize((0.5, 0.5, 0.5), (0.5, 0.5, 0.5))
             ])
         else:
-            raise ValueError(f"Dataset '{self.dataset_name}' not recognized.")
+            raise ValueError(f"Dataset '{self.data}' not recognized.")
 
     def _load_raw_dataset(self, transform):
         """Downloads and loads the dataset object."""
-        if self.dataset_name == 'MNIST':
+        if self.data == 'MNIST':
             print("Using MNIST dataset.")
             return torchvision.datasets.MNIST(root=self.data_path, train=True,
                                               download=True, transform=transform)
-        elif self.dataset_name == 'CIFAR10':
+        elif self.data == 'CIFAR10':
             print("Using CIFAR10 dataset.")
             return torchvision.datasets.CIFAR10(root=self.data_path, train=True,
                                                 download=True, transform=transform)
         else:
-            print(f"Error: Dataset '{self.dataset_name}' not recognized. Exiting.")
+            print(f"Error: Dataset '{self.data}' not recognized. Exiting.")
             sys.exit(1)
 
     def prepare_datasets(self):
@@ -80,6 +80,8 @@ class Dataset:
             full_dataset, [train_size, val_size], generator=generator
         )
 
+        self.client_datasets = self.split_dataset_equal(self.train_dataset, num_clients=5, seed=123, save_dir="./data")
+
         # Handle subset creation (if config requests running on less data)
         if self.subset_fraction < 1.0:
             self.train_dataset = self._create_subset(self.train_dataset, self.subset_fraction)
@@ -94,3 +96,16 @@ class Dataset:
         subset_size = int(len(dataset) * fraction)
         indices = list(range(subset_size))
         return Subset(dataset, indices)
+    
+    def split_dataset_equal(self, full_dataset, num_clients=5, seed=123, save_dir="./data"):
+        os.makedirs(save_dir, exist_ok=True)
+        np.random.seed(seed)
+        indices = np.random.permutation(len(full_dataset))
+        splits = np.array_split(indices, num_clients)
+        client_sets = [Subset(full_dataset, s) for s in splits]
+        print("Client sizes:", [len(c) for c in client_sets])
+        for i, subset in enumerate(client_sets):
+            torch.save(subset.indices, os.path.join(save_dir, f"client_{i}.pt"))
+        print("Split done. Saved to:", save_dir)
+
+        return client_sets
