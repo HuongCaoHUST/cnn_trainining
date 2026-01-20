@@ -20,6 +20,8 @@ from src.communication import Communication
 from ultralytics.utils.loss import v8DetectionLoss
 from ultralytics.cfg import get_cfg
 from ultralytics.utils import DEFAULT_CFG
+from ultralytics.nn.tasks import DetectionModel
+from ultralytics.data.utils import check_det_dataset
 
 class Trainer:
     def __init__(self, config, device, num_classes, project_root):
@@ -39,36 +41,32 @@ class Trainer:
         self.model_name = config['model']['name']
         self.model_save_path = config['model']['save_path']
         self.save_model_enabled = config['model'].get('save_model', True)
+        self.pretrained_path = config['model'].get('pretrained_path')
 
         # Initialize RabbitMQ connection
         self.comm = Communication(config)
 
-        # 1. Load dataset configuration first to get the number of classes
-        from ultralytics.data.utils import check_det_dataset
         data_cfg = check_det_dataset("./data/livingroom_4_1.yaml")
         self.num_classes = data_cfg['nc']
 
         # 2. Initialize model with the correct number of classes
-        from ultralytics.nn.tasks import DetectionModel
         self.model = DetectionModel("yolo11n.yaml", nc=self.num_classes)
 
         # Load pretrained weights
-        pretrained_path = './yolo11n.pt'
-        if os.path.exists(pretrained_path):
-            print(f"Loading pretrained weights from '{pretrained_path}'")
+        if self.pretrained_path and os.path.exists(self.pretrained_path):
+            print(f"Loading pretrained weights from '{self.pretrained_path}'")
             try:
-                # File pretrained 'yolo11n.pt' chứa một đối tượng model được pickle, không chỉ là trọng số.
-                # Kể từ PyTorch 2.6, `torch.load` mặc định là `weights_only=True` vì lý do bảo mật.
-                # Chúng ta phải đặt nó thành `False` để tải loại checkpoint này.
-                ckpt = torch.load(pretrained_path, map_location=self.device, weights_only=False)
-                # Handle different checkpoint formats (full model vs. state_dict)
+                ckpt = torch.load(self.pretrained_path, map_location=self.device, weights_only=False)
                 state_dict = (ckpt.get('model') or ckpt).float().state_dict()
                 self.model.load_state_dict(state_dict, strict=False)
                 print("Pretrained weights loaded successfully for transfer learning.")
             except Exception as e:
                 print(f"Error loading pretrained weights: {e}. Starting from scratch.")
         else:
-            print(f"Pretrained weights not found at '{pretrained_path}'. Starting from scratch.")
+            if self.pretrained_path:
+                print(f"Pretrained weights not found at '{self.pretrained_path}'. Starting from scratch.")
+            else:
+                print("No pretrained weights specified. Starting from scratch.")
 
         self.model.names = data_cfg['names']
 
@@ -214,11 +212,6 @@ class Trainer:
             final_epoch = epoch
             avg_train_loss = self.train_one_epoch(epoch)
             print("avg_train_loss:", avg_train_loss)
-            # avg_val_loss, val_accuracy = self.validate_one_epoch(epoch)
-            
-            # Log to CSV
-            # update_results_csv(epoch + 1, avg_train_loss, avg_val_loss, val_accuracy, self.run_dir)
-            # print(f'Epoch [{epoch+1}/{self.num_epochs}] -> Train Loss: {avg_train_loss:.4f} | Val Loss: {avg_val_loss:.4f}, Val Acc: {val_accuracy:.2f}%')
         
         print("Finished Training.")
         self.comm.close()
