@@ -51,18 +51,13 @@ class Trainer:
         self.num_classes = data_cfg['nc']
 
         # 2. Initialize model with the correct number of classes
-        self.model = DetectionModel("yolo11n.yaml", nc=self.num_classes)
+        self.model = DetectionModel("yolo11n.yaml", nc=self.num_classes).to(self.device)
 
         # Load pretrained weights
         if self.pretrained_path and os.path.exists(self.pretrained_path):
             print(f"Loading pretrained weights from '{self.pretrained_path}'")
-            try:
-                ckpt = torch.load(self.pretrained_path, map_location=self.device, weights_only=False)
-                state_dict = (ckpt.get('model') or ckpt).float().state_dict()
-                self.model.load_state_dict(state_dict, strict=False)
-                print("Pretrained weights loaded successfully for transfer learning.")
-            except Exception as e:
-                print(f"Error loading pretrained weights: {e}. Starting from scratch.")
+            checkpoint = torch.load(self.pretrained_path, map_location='cpu', weights_only=False)
+            self.model.load(checkpoint)
         else:
             if self.pretrained_path:
                 print(f"Pretrained weights not found at '{self.pretrained_path}'. Starting from scratch.")
