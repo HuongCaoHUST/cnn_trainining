@@ -6,23 +6,24 @@ import sys # Added for sys.exit
 import yaml
 import torch
 
-def update_results_csv(epoch, train_loss, val_loss, val_accuracy, save_dir):
+def update_results_csv(epoch, train_loss, val_loss, precision, recall, map50, map5095, save_dir):
     """
     Appends the latest epoch results to a CSV file.
     Creates the file and writes the header on the first call.
     """
     results_path = os.path.join(save_dir, 'results.csv')
     file_exists = os.path.isfile(results_path)
-
+    header = ['epoch', 'train_loss', 'val_loss', 'metrics/precision', 'metrics/recall', 'metrics/mAP_0.5', 'metrics/mAP_0.5-0.95']
+    data = [epoch, train_loss, val_loss, precision, recall, map50, map5095]
+    
     with open(results_path, 'a', newline='') as f:
         writer = csv.writer(f)
         if not file_exists:
-            writer.writerow(['epoch', 'train_loss', 'val_loss', 'val_accuracy'])
-        
-        writer.writerow([epoch, train_loss, val_loss, val_accuracy])
+            writer.writerow(header)
+        writer.writerow(data)
     # No print statement here to avoid cluttering the epoch log
 
-def save_plots(history_train_loss, history_val_loss, history_val_accuracy, save_dir):
+def save_plots(history_train_loss, history_val_loss, history_map50, save_dir):
     """
     Generates and saves plots for training/validation loss and validation accuracy
     in the specified directory.
@@ -44,21 +45,21 @@ def save_plots(history_train_loss, history_val_loss, history_val_accuracy, save_
     plt.savefig(loss_plot_path)
     plt.close() # Đóng figure để giải phóng bộ nhớ
     print(f"Loss plot saved to {loss_plot_path}")
-
-    # Vẽ biểu đồ Accuracy
+    
+    # Vẽ biểu đồ mAP
     plt.figure(figsize=(10, 5))
-    plt.plot(epochs, history_val_accuracy, label='Validation Accuracy', marker='o')
-    plt.title('Validation Accuracy')
+    plt.plot(epochs, history_map50, label='Validation mAP@0.5', marker='o', color='c')
+    plt.title('Validation mAP@0.5')
     plt.xlabel('Epochs')
-    plt.ylabel('Accuracy (%)')
-
+    plt.ylabel('mAP@0.5')
+    
     ax = plt.gca()
     ax.xaxis.set_major_locator(MaxNLocator(integer=True))
     plt.legend()
-    acc_plot_path = os.path.join(save_dir, 'accuracy_plot.png')
-    plt.savefig(acc_plot_path)
+    map_plot_path = os.path.join(save_dir, 'map_plot.png')
+    plt.savefig(map_plot_path)
     plt.close() # Đóng figure
-    print(f"Accuracy plot saved to {acc_plot_path}")
+    print(f"mAP plot saved to {map_plot_path}")
 
 def _load_class_names_from_file(file_path):
     """

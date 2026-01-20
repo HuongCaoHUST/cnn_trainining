@@ -79,9 +79,6 @@ def non_max_suppression(
         if not x.shape[0]:
             continue
 
-        # Compute conf
-        x[:, 4:] *= x[:, 4:]  # conf = obj_conf * cls_conf
-
         # Box conversion
         box = xywh2xyxy(x[:, :4])
 

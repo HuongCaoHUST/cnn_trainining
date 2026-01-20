@@ -124,7 +124,7 @@ class Trainer:
         # History tracking
         self.history_train_loss = []
         self.history_val_loss = []
-        self.history_val_accuracy = []
+        self.history_map50 = []
 
     def _init_model(self):
         print(f"Initializing model: {self.model_name}...")
@@ -230,10 +230,8 @@ class Trainer:
 
                     if nl:
                         target_boxes = xywh2xyxy(target_labels[:, 1:]) 
-                        scale_boxes(images[i].shape[1:], target_boxes, (640, 640))
                         target_boxes[:, [0, 2]] *= images.shape[3]
                         target_boxes[:, [1, 3]] *= images.shape[2]
-                        
                         labels_pixel = torch.cat((target_labels[:, 0:1], target_boxes), 1)
                         correct = self.process_batch(pred, labels_pixel)
 
@@ -272,25 +270,32 @@ class Trainer:
         Trả về ma trận TP cho các ngưỡng IoU (0.5 -> 0.95).
         """
         # Iou thresholds: 0.5, 0.55, ..., 0.95 (10 ngưỡng)
-        iou_v = torch.linspace(0.5, 0.95, 10).to(self.device)
+        iou_v = torch.linspace(0.5, 0.95, 10, device=self.device)
         n_iou = iou_v.numel()
+        correct = torch.zeros(detections.shape[0], n_iou, dtype=torch.bool, device=self.device)
+
+        if labels.shape[0] == 0:
+            return correct
         
-        correct = np.zeros((detections.shape[0], n_iou), dtype=bool)
         iou = box_iou(labels[:, 1:], detections[:, :4])
         x = torch.where((iou >= iou_v[0]) & (labels[:, 0:1] == detections[:, 5]))  # IoU > 0.5 và cùng class
         
         if x[0].shape[0]:
-            matches = torch.cat((torch.stack(x, 1), iou[x[0], x[1]][:, None]), 1).cpu().numpy()
+            # matches: [label_idx, detection_idx, iou]
+            matches = torch.cat((torch.stack(x, 1).float(), iou[x[0], x[1]][:, None]), 1)
             if x[0].shape[0] > 1:
-                matches = matches[matches[:, 2].argsort()[::-1]]
-                matches = matches[np.unique(matches[:, 1], return_index=True)[1]]
-                matches = matches[matches[:, 2].argsort()[::-1]]
-                matches = matches[np.unique(matches[:, 0], return_index=True)[1]]
+                # Vectorized greedy matching
+                matches_np = matches.cpu().numpy()
+                matches_np = matches_np[matches_np[:, 2].argsort()[::-1]]
+                matches_np = matches_np[np.unique(matches_np[:, 1], return_index=True)[1]]
+                matches_np = matches_np[matches_np[:, 2].argsort()[::-1]]
+                matches_np = matches_np[np.unique(matches_np[:, 0], return_index=True)[1]]
+                matches = torch.from_numpy(matches_np).to(self.device)
             
-            matches = torch.from_numpy(matches).to(self.device)
-            correct[matches[:, 1].long().cpu()] = (matches[:, 2:3] >= iou_v).cpu()
+            # For the final one-to-one matches, check against all IoU thresholds
+            correct[matches[:, 1].long()] = matches[:, 2:3] >= iou_v
             
-        return torch.tensor(correct, dtype=torch.bool, device=self.device)
+        return correct
 
     def post_processing(self, epoch):
         # Save checkpoint
@@ -329,16 +334,14 @@ class Trainer:
 
             avg_val_loss, map50, map5095, mp, mr = self.validate_one_epoch(epoch)
 
-            avg_val_loss = 0.0
-            val_accuracy = 0.0
             self.history_val_loss.append(avg_val_loss)
-            self.history_val_accuracy.append(val_accuracy)
+            self.history_map50.append(map50)
 
-            print(f"Epoch {epoch+1}/{self.num_epochs} - Train Loss: {avg_train_loss:.4f}")
-            update_results_csv(epoch + 1, avg_train_loss, avg_val_loss, val_accuracy, self.run_dir)
+            print(f"Epoch {epoch+1}/{self.num_epochs} - Train Loss: {avg_train_loss:.4f}, Val Loss: {avg_val_loss:.4f}, mAP@.50: {map50:.4f}, mAP@.5-.95: {map5095:.4f}")
+            update_results_csv(epoch + 1, avg_train_loss, avg_val_loss, mp, mr, map50, map5095, self.run_dir)
 
         print("Finished Training.")
-        save_plots(self.history_train_loss, self.history_val_loss, self.history_val_accuracy, self.run_dir)
+        save_plots(self.history_train_loss, self.history_val_loss, self.history_map50, self.run_dir)
 
         self.comm.close()
         self.post_processing(final_epoch)
