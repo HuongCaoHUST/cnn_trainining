@@ -34,7 +34,7 @@ class Trainer:
         # Set Hyperparameters
         self.run_dir = create_run_dir(project_root)
         self.batch_size = config['training']['batch_size']
-        self.num_workers = 2
+        self.num_workers = config['training'].get('num_workers', 2)
         self.num_epochs = config['training']['num_epochs']
         self.learning_rate = config['training']['learning_rate']
         self.optimizer_name = config['training'].get('optimizer', 'Adam')
@@ -96,7 +96,7 @@ class Trainer:
             self.train_dataset,
             batch_size=self.batch_size,
             shuffle=True,
-            num_workers=2,
+            num_workers=self.num_workers,
             collate_fn=self.train_dataset.collate_fn
         )
 
