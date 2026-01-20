@@ -20,6 +20,7 @@ services:
 
   server:
     build: .
+    image: cnn_training:latest
     container_name: server
     depends_on:
       rabbitmq:
@@ -31,7 +32,7 @@ services:
     command: ["python", "main.py", "--layer_id", "0"]
 
   torch_1:
-    build: .
+    image: cnn_training:latest
     container_name: client_edge
     depends_on:
       rabbitmq:
@@ -45,7 +46,7 @@ services:
     command: ["python", "main.py", "--layer_id", "1"]
 
   torch_2:
-    build: .
+    image: cnn_training:latest
     container_name: client_server
     depends_on:
       rabbitmq:

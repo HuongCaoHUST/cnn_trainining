@@ -11,6 +11,7 @@ model:
   server: 'AlexNet_SERVER'
   save_path: 'cifar_net.pth'
   save_model: true
+  pretrained_path: './yolo11n.pt'
 
 dataset:
   data: 'CIFAR10' # 'CIFAR10' or 'MNIST'
