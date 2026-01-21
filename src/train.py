@@ -61,17 +61,6 @@ class TrainerEdge:
         self.yolo_args = get_cfg(DEFAULT_CFG)
         self.model.args = self.yolo_args
 
-        # # Load pretrained weights
-        # if self.pretrained_path and os.path.exists(self.pretrained_path):
-        #     print(f"Loading pretrained weights from '{self.pretrained_path}'")
-        #     checkpoint = torch.load(self.pretrained_path, map_location='cpu', weights_only=False)
-        #     self.model.load(checkpoint)
-        # else:
-        #     if self.pretrained_path:
-        #         print(f"Pretrained weights not found at '{self.pretrained_path}'. Starting from scratch.")
-        #     else:
-        #         print("No pretrained weights specified. Starting from scratch.")
-
         # Init Optimizer
         if self.optimizer_name.lower() == 'sgd':
             self.optimizer = optim.SGD(self.model.parameters(), lr=self.learning_rate, momentum=0.937, weight_decay=0.0005)
@@ -129,15 +118,6 @@ class TrainerEdge:
                 'batch_data': serializable_batch
             }
 
-            packet_size_bytes = len(data_bytes)
-            packet_size_kb = packet_size_bytes / 1024
-            packet_size_mb = packet_size_kb / 1024
-
-            print(
-                f"Packet size: {packet_size_bytes} bytes "
-                f"({packet_size_kb:.2f} KB, {packet_size_mb:.2f} MB)"
-            )
-            
             data_bytes = pickle.dumps(payload)
             self.comm.publish_message(queue_name='intermediate_queue', message=data_bytes)
 
@@ -234,43 +214,23 @@ class TrainerServer:
         self.comm = Communication(config)
 
         # Initialize model
-        self.model = self._init_model()
+        self.model = YOLO11_SERVER(pretrained = 'yolo11n.pt').to(self.device)
         
         # Init Loss and Optimizer
-        self.criterion = nn.CrossEntropyLoss()
+        self.criterion = v8DetectionLoss(self.model)
         if self.optimizer_name.lower() == 'sgd':
-            self.optimizer = optim.SGD(self.model.parameters(), lr=self.learning_rate, momentum=self.momentum)
+            self.optimizer = optim.SGD(self.model.parameters(), lr=self.learning_rate, momentum=0.937, weight_decay=0.0005)
         elif self.optimizer_name.lower() == 'adam':
             self.optimizer = optim.Adam(self.model.parameters(), lr=self.learning_rate)
+        elif self.optimizer_name.lower() == 'adamw':
+             self.optimizer = optim.AdamW(self.model.parameters(), lr=self.learning_rate, weight_decay=0.0005)
         else:
-            raise ValueError(f"Optimizer {self.optimizer_name} not supported. Please choose 'SGD' or 'Adam'.")
+            raise ValueError(f"Optimizer {self.optimizer_name} not supported.")
 
         # History tracking
         self.history_train_loss = []
         self.history_val_loss = []
         self.history_val_accuracy = []
-
-    def _init_model(self):
-        print(f"Initializing model: {self.model_name}...")
-        model_map = {
-            'AlexNet': AlexNet,
-            'AlexNet_EDGE': AlexNet_EDGE,
-            'AlexNet_SERVER': AlexNet_SERVER,
-            'AlexNet': AlexNet,
-            'MobileNet': MobileNet,
-            'VGG16': VGG16,
-            'VGG16_EDGE': VGG16_EDGE,
-            'VGG16_SERVER': VGG16_SERVER
-        }
-
-        if self.model_name not in model_map:
-            print(f"Error: Model '{self.model_name}' not recognized. Supported models: {list(model_map.keys())}")
-            sys.exit(1)
-        
-        model = model_map[self.model_name](num_classes=self.num_classes).to(self.device)
-        print(f"Model Parameters: {count_parameters(model):,}")
-        print("Model initialized.")
-        return model
 
     def train_one_epoch(self, epoch):
         self.model.train()
