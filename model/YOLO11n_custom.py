@@ -75,7 +75,13 @@ class YOLO11_SERVER(nn.Module):
         self.layers.append(Concat(dimension=1))
         self.layers.append(C3k2(384, 256, n=1, c3k=True))
 
-        self.head = Detect(nc=nc, ch=[64, 128, 256])
+        self.layers.append(Detect(nc=nc, ch=[64, 128, 256]))
+
+        self.model = self.layers
+        detect_layer = self.layers[-1]
+        if isinstance(detect_layer, Detect):
+            detect_layer.stride = torch.tensor([8., 16., 32.])
+            detect_layer.bias_init()
 
         if pretrained:
             self.load_pretrained_weights(pretrained)
@@ -126,16 +132,7 @@ class YOLO11_SERVER(nn.Module):
             except Exception as e:
                 print(f"Layer {i}: Failed to load. Error: {e}")
                 break
-
-        source_head = pretrained_model[-1]
-        if (source_head.cv2[0][0].conv.weight.shape == 
-            self.head.cv2[0][0].conv.weight.shape):
-            self.head.load_state_dict(source_head.state_dict())
-            loaded_count += 1
-        else:
-            print("Head not loaded (NC mismatch).")
-
-        print(f"Load pretrained model success {loaded_count}/{len(self.layers) + 1} layers")
+        print(f"Load pretrained model success {loaded_count}/{len(self.layers)} layers")
     
 class YOLO11_Full(nn.Module):
     def __init__(self, nc=80, pretrained=None):
@@ -166,8 +163,13 @@ class YOLO11_Full(nn.Module):
         self.layers.append(Conv(c1=128, c2=128, k=3, s=2))
         self.layers.append(Concat(dimension=1))
         self.layers.append(C3k2(c1=384, c2=256, n=1, c3k=True)) # 128(down) + 256(P5) = 384
+        self.layers.append(Detect(nc=nc, ch=[64, 128, 256]))
 
-        self.head = Detect(nc=nc, ch=[64, 128, 256])
+        self.model = self.layers
+        detect_layer = self.layers[-1]
+        if isinstance(detect_layer, Detect):
+            detect_layer.stride = torch.tensor([8., 16., 32.])
+            detect_layer.bias_init()
 
         if pretrained:
             self.load_pretrained_weights(pretrained)
@@ -203,7 +205,7 @@ class YOLO11_Full(nn.Module):
         head_p5 = self.layers[22](x)     # Output P5
 
         # Head
-        return self.head([head_p3, head_p4, head_p5])
+        return self.layers[23]([head_p3, head_p4, head_p5])
 
     def load_pretrained_weights(self, pt_path):
         print(f"Loading weights from {pt_path}...")
@@ -222,18 +224,7 @@ class YOLO11_Full(nn.Module):
             except Exception as e:
                 print(f"Layer {i}: Failed to load. Error: {e}")
                 break
-        try:
-            source_head = pretrained_layers[-1]
-            if (source_head.cv2[0][0].conv.weight.shape == 
-                self.head.cv2[0][0].conv.weight.shape):
-                self.head.load_state_dict(source_head.state_dict())
-                loaded_count += 1
-            else:
-                print("Head not loaded (NC mismatch or different shape).")
-        except Exception as e:
-             print(f"Head load failed: {e}")
-
-        print(f"Load pretrained model success {loaded_count}/{len(self.layers) + 1} modules")
+        print(f"Load pretrained model success {loaded_count}/{len(self.layers)} modules")
 
 if __name__ == "__main__":
     edge_model = YOLO11_EDGE(pretrained='yolo11n.pt')
