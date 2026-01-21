@@ -92,21 +92,24 @@ def count_parameters(model):
     """
     return sum(p.numel() for p in model.parameters() if p.requires_grad)
 
-def create_run_dir(project_root):
+def create_run_dir(project_root, layer_id=None):
     """
     Creates a new directory for the current run to save results.
     """
     results_dir = os.path.join(project_root, 'results')
     os.makedirs(results_dir, exist_ok=True)
 
-    # Find the next available run directory
     run_idx = 1
-    while os.path.exists(os.path.join(results_dir, f'run_{run_idx}')):
+    while True:
+        if layer_id is not None:
+            run_name = f"run_{layer_id}_{run_idx}"
+        else:
+            run_name = f"run_{run_idx}"
+        run_dir = os.path.join(results_dir, run_name)
+        if not os.path.exists(run_dir):
+            os.makedirs(run_dir)
+            break
         run_idx += 1
-    
-    run_dir = os.path.join(results_dir, f'run_{run_idx}')
-    os.makedirs(run_dir)
-    
     print(f"Created run directory: {run_dir}")
     return run_dir
 

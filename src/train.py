@@ -37,7 +37,7 @@ class TrainerEdge:
         self.project_root = project_root
         
         # Set Hyperparameters
-        self.run_dir = create_run_dir(project_root)
+        self.run_dir = create_run_dir(project_root, layer_id = 1)
         self.batch_size = config['training']['batch_size']
         self.num_workers = config['training'].get('num_workers', 0)
         self.num_epochs = config['training']['num_epochs']
@@ -128,6 +128,15 @@ class TrainerEdge:
                 'client_output': [x.detach().cpu().numpy() for x in outputs],
                 'batch_data': serializable_batch
             }
+
+            packet_size_bytes = len(data_bytes)
+            packet_size_kb = packet_size_bytes / 1024
+            packet_size_mb = packet_size_kb / 1024
+
+            print(
+                f"Packet size: {packet_size_bytes} bytes "
+                f"({packet_size_kb:.2f} KB, {packet_size_mb:.2f} MB)"
+            )
             
             data_bytes = pickle.dumps(payload)
             self.comm.publish_message(queue_name='intermediate_queue', message=data_bytes)
