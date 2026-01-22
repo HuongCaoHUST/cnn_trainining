@@ -16,7 +16,7 @@ from model.VGG16 import VGG16
 from model.VGG16_EDGE import VGG16_EDGE
 from model.VGG16_SERVER import VGG16_SERVER
 from model.YOLO11n_custom import YOLO11_EDGE, YOLO11_SERVER
-from src.utils import update_results_csv, save_plots, count_parameters, create_run_dir
+from src.utils import update_results_csv, save_plots, count_parameters, create_run_dir, clear_memory
 from src.dataset import Dataset
 from src.communication import Communication
 from src.server import Server
@@ -138,7 +138,7 @@ class TrainerEdge:
             self.optimizer.step()
             # running_loss += batch_loss
             # train_progress_bar.set_postfix({'server_loss': batch_loss})
-
+        clear_memory(threshold=0.85)
         avg_train_loss = running_loss / len(self.train_loader)
         self.history_train_loss.append(avg_train_loss)
         return avg_train_loss

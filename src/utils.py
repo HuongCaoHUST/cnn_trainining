@@ -5,6 +5,8 @@ from matplotlib.ticker import MaxNLocator
 import sys # Added for sys.exit
 import yaml
 import torch
+import psutil
+import gc
 
 def update_results_csv(epoch, train_loss, val_loss=None, val_accuracy=None, save_dir = './results'):
     """
@@ -134,3 +136,56 @@ def load_config_and_setup(config_path, project_root):
     num_classes = len(class_names)
 
     return config, device, num_classes
+def get_memory(unit='fraction'):
+        """
+        unit: fraction, gb, bytes
+        """
+        cgroup_v1_current = "/sys/fs/cgroup/memory/memory.usage_in_bytes"
+        cgroup_v1_max = "/sys/fs/cgroup/memory/memory.limit_in_bytes"
+
+        try:
+            limit = None
+            usage = None
+
+            if os.path.exists(cgroup_v1_current):
+                with open(cgroup_v1_current, "r") as f:
+                    usage = int(f.read().strip())
+            
+            if os.path.exists(cgroup_v1_max):
+                with open(cgroup_v1_max, "r") as f:
+                    limit = int(f.read().strip())
+
+            if usage is not None:
+                if limit is None or limit > 10**15: 
+                    limit = psutil.virtual_memory().total
+                
+                if unit == 'fraction':
+                    return usage / limit
+                elif unit == 'gb':
+                    return usage / (1024**3)
+                else:
+                    return usage 
+
+        except Exception as e:
+            print(f"Warning reading cgroup: {e}") 
+            pass
+
+        mem = psutil.virtual_memory()
+        if unit == 'fraction':
+            return mem.percent / 100.0
+        elif unit == 'gb':
+            return mem.used / (1024**3)
+        return mem.used
+
+def clear_memory(self, threshold: float = 0.85):
+        if threshold:
+            assert 0 <= threshold <= 1, "Threshold must be between 0 and 1."
+            if get_memory(unit='fraction') <= threshold:
+                return
+
+        gc.collect()
+        
+        if self.device.type == "mps":
+            torch.mps.empty_cache()
+        elif self.device.type == "cuda":
+            torch.cuda.empty_cache()
