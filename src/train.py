@@ -7,7 +7,7 @@ import os
 import json
 from torch.utils.data import DataLoader
 from tqdm import tqdm
-
+import time
 from model.Alexnet import AlexNet
 from model.Alexnet_EDGE import AlexNet_EDGE
 from model.Alexnet_SERVER import AlexNet_SERVER
@@ -53,7 +53,7 @@ class TrainerEdge:
         self.comm = Communication(config)
 
         # Initialize model
-        self.data_cfg = check_det_dataset("coco8.yaml")
+        self.data_cfg = check_det_dataset("./datasets/livingroom_4_1.yaml")
         self.num_classes = self.data_cfg['nc']
         self.model = YOLO11_EDGE(pretrained = 'yolo11n.pt').to(self.device)
 
@@ -134,7 +134,7 @@ class TrainerEdge:
                 else:
                     grad_tensors.append(torch.from_numpy(g).to(self.device))
 
-            outputs.backward(grad_tensors)
+            torch.autograd.backward(outputs, grad_tensors)
             self.optimizer.step()
             # running_loss += batch_loss
             # train_progress_bar.set_postfix({'server_loss': batch_loss})
@@ -244,7 +244,7 @@ class TrainerServer:
     def train_one_epoch(self, epoch):
         self.model.train()
         running_loss = 0.0
-        train_progress_bar = tqdm(range(1407), desc=f"Epoch {epoch+1}/{self.num_epochs} [Train]")
+        train_progress_bar = tqdm(range(15), desc=f"Epoch {epoch+1}/{self.num_epochs} [Train]")
         
         for i in train_progress_bar:
             body = self.comm.consume_message_sync('intermediate_queue')
@@ -345,9 +345,11 @@ class TrainerServer:
 
 def train(config, device, num_classes, project_root, layer_id):
     if layer_id == 1:
+        time.sleep(5)
         trainer = TrainerEdge(config, device, num_classes, project_root)
         trainer.run()
     elif layer_id == 2:
+        time.sleep(5)
         trainer = TrainerServer(config, device, num_classes, project_root)
         trainer.run()
     elif layer_id == 0:
