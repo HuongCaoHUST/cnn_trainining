@@ -45,6 +45,10 @@ services:
     stdin_open: true
     command: ["python", "main.py", "--layer_id", "1"]
     shm_size: '4gb'
+    ulimits:
+      nofile:
+        soft: 65536
+        hard: 65536
     deploy:
       resources:
         reservations:
@@ -67,6 +71,10 @@ services:
     stdin_open: true
     command: ["python", "main.py", "--layer_id", "2"]
     shm_size: '4gb'
+    ulimits:
+      nofile:
+        soft: 65536
+        hard: 65536
     deploy:
       resources:
         reservations:
