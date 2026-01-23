@@ -190,7 +190,7 @@ class TrainerEdge:
         self.comm.connect()
 
         nb_train = len(self.train_loader)
-        self.comm.send_training_metadata('server_queue', nb_train, nb_val = None)
+        self.comm.send_training_metadata('server_queue', nb_train)
 
         for epoch in range(self.num_epochs):
             avg_train_loss = self.train_one_epoch(epoch)
@@ -214,7 +214,7 @@ class TrainerServer:
         self.project_root = project_root
         
         # Set Hyperparameters
-        self.run_dir = create_run_dir(project_root)
+        self.run_dir = create_run_dir(project_root, layer_id = 2)
         self.batch_size = config['training']['batch_size']
         self.num_workers = config['training'].get('num_workers', 0)
         self.num_epochs = config['training']['num_epochs']

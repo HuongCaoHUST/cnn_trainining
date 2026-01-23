@@ -125,11 +125,12 @@ class Communication:
         else:
             print("Error: Channel is not initialized. Please call connect() first.")
 
-    def send_training_metadata(self, queue_name, nb_train, nb_val):
+    def send_training_metadata(self, queue_name, nb_train = None, nb_val = None):
         """
         Sends training metadata (number of training and validation batches) to a queue.
         """
         payload = {
+            'action': 'send_number_batch',
             'nb_train': nb_train,
             'nb_val': nb_val
         }
