@@ -8,6 +8,7 @@ class Server:
         self.datasets = config['dataset']
         self.client = {}
         self.comm = Communication(config)
+        self.registed = [0,0]
 
     def run(self):
         print("Server class initialized.")
@@ -29,12 +30,21 @@ class Server:
                 layer_id = payload.get('layer_id')
                 client_id = payload.get('client_id')
                 self.client[client_id] = {"layer_id": layer_id}
-                print(f"Received register message: {client_id}")
+
+                if layer_id == 1:
+                    self.registed[0] += 1
+                else:
+                    self.registed[1] += 1
+
+                if self.registed == self.num_client:
+                    client_ids = list(self.client.keys())
+                    self.comm.send_start_message(client_ids)
 
             elif action == 'send_number_batch':
-                nb = payload.get('nb')
+                nb = payload.get('nb_train')
                 client_id = payload.get('client_id')
-                self.client[client_id] = {"nb": nb}
+                self.client[client_id]["nb_train"] = nb
+                print("Self.client: ", self.client)
 
             elif action == 'update_model':
                 model_data = payload.get('model_data')

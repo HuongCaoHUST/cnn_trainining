@@ -59,7 +59,6 @@ class TrainerEdge:
         # Send register message
         self.layer_id = layer_id
         self.client_id = client_id
-        self.comm.send_register_message(layer_id, client_id)
 
         # Initialize model
         self.data_cfg = check_det_dataset("./datasets/livingroom_4_1.yaml")
@@ -194,7 +193,7 @@ class TrainerEdge:
         print("Starting Training...")
 
         nb_train = len(self.train_loader)
-        self.comm.send_training_metadata('server_queue', nb_train)
+        self.comm.send_training_metadata('server_queue', self.client_id, nb_train)
 
         for epoch in range(self.num_epochs):
             avg_train_loss = self.train_one_epoch(epoch)
@@ -235,7 +234,6 @@ class TrainerServer:
         # Send register message
         self.layer_id = layer_id
         self.client_id = client_id
-        self.comm.send_register_message(layer_id, client_id)
 
         # Initialize model
         self.model = YOLO11_SERVER(pretrained = 'yolo11n.pt').to(self.device)
@@ -383,18 +381,3 @@ class TrainerServer:
         self.mlflow_connector.end_run()
         self.post_processing()
         self.comm.close()
-
-def train(config, device, project_root, layer_id, client_id):
-    if layer_id == 1:
-        time.sleep(5)
-        trainer = TrainerEdge(config, device, project_root, layer_id, client_id)
-        trainer.run()
-    elif layer_id == 2:
-        time.sleep(5)
-        trainer = TrainerServer(config, device, project_root, layer_id, client_id)
-        trainer.run()
-    elif layer_id == 0:
-        server = Server(config)
-        server.run()
-    else:
-        print(f"Layer not supported: {layer_id}")

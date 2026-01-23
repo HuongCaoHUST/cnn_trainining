@@ -136,12 +136,23 @@ class Communication:
         }
         self.publish_message('server_queue', pickle.dumps(payload))
 
-    def send_training_metadata(self, queue_name, nb_train = None, nb_val = None):
+    def send_start_message(self, client_ids = None):
+        """
+        Sends register message to centralized server.
+        """
+        for id in client_ids:
+            payload = {
+                'action': 'start'
+            }
+            self.publish_message(f'client_queue_{id}', pickle.dumps(payload))
+
+    def send_training_metadata(self, queue_name, client_id, nb_train = None, nb_val = None):
         """
         Sends training metadata (number of training and validation batches) to a queue.
         """
         payload = {
             'action': 'send_number_batch',
+            'client_id': client_id,
             'nb_train': nb_train,
             'nb_val': nb_val
         }
