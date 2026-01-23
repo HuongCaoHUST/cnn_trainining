@@ -5,8 +5,8 @@ class MLflowConnector:
     """
     A wrapper class to manage connection and logging to a remote MLflow server.
 
-    This class uses a context manager (`with` statement) to ensure that
-    each MLflow run is properly started and terminated.
+    This class provides explicit methods to start and end a run, which should
+    be handled within a try/finally block to ensure runs are always terminated.
 
     Attributes:
         tracking_uri (str): The URI of the remote MLflow tracking server.
@@ -24,20 +24,23 @@ class MLflowConnector:
         """
         self.tracking_uri = tracking_uri
         self.experiment_name = experiment_name
+        self.run = None
         mlflow.set_tracking_uri(self.tracking_uri)
         mlflow.set_experiment(self.experiment_name)
 
-    def __enter__(self):
+    def start_run(self, run_name: str = None):
         """
-        Starts an MLflow run when entering the 'with' context.
-        """
-        self.run = mlflow.start_run()
-        print(f"MLflow run started (run_id: {self.run.info.run_id})")
-        return self
+        Starts an MLflow run.
 
-    def __exit__(self, exc_type, exc_val, exc_tb):
+        Args:
+            run_name (str, optional): An optional name for the run.
         """
-        Ends the MLflow run when exiting the 'with' context.
+        self.run = mlflow.start_run(run_name=run_name)
+        print(f"MLflow run '{run_name}' started (run_id: {self.run.info.run_id})")
+
+    def end_run(self):
+        """
+        Ends the active MLflow run.
         """
         mlflow.end_run()
         print("MLflow run finished.")
@@ -121,3 +124,53 @@ class MLflowConnector:
             registered_model_name=registered_model_name
         )
         print(f"Logged model '{artifact_path}'.")
+
+
+# --- Example Usage ---
+if __name__ == '__main__':
+    # TODO: Replace with your actual VPS IP address and port
+    MLFLOW_TRACKING_URI = "http://your_vps_ip:5000"
+    EXPERIMENT_NAME = "My Awesome CNN Experiment"
+
+    # Initialize the connector
+    mlflow_connector = MLflowConnector(
+        tracking_uri=MLFLOW_TRACKING_URI,
+        experiment_name=EXPERIMENT_NAME
+    )
+
+    # Use a try/finally block to ensure the run is always closed
+    try:
+        # 1. Start the run
+        mlflow_connector.start_run(run_name="Manual Run Example")
+        print("Inside MLflow run context.")
+
+        # 2. Log hyperparameters
+        hyperparams = {
+            "learning_rate": 0.005,
+            "batch_size": 128,
+            "optimizer": "SGD"
+        }
+        mlflow_connector.log_params(hyperparams)
+
+        # 3. Log metrics over epochs (simulated training loop)
+        print("\nSimulating training loop...")
+        for epoch in range(10):
+            loss = 0.8 / (epoch + 1)
+            accuracy = 1.0 - loss
+            mlflow_connector.log_metrics({"loss": loss, "accuracy": accuracy}, step=epoch)
+        print("Finished logging metrics.\n")
+
+        # 4. Log an artifact
+        dummy_artifact_path = "dummy_artifact.txt"
+        with open(dummy_artifact_path, "w") as f:
+            f.write("This is a sample artifact from a manual run.")
+        mlflow_connector.log_artifact(dummy_artifact_path, "configs")
+        os.remove(dummy_artifact_path)
+
+    except Exception as e:
+        print(f"An error occurred: {e}")
+    finally:
+        # 5. End the run
+        mlflow_connector.end_run()
+
+    print("\nExample finished successfully!")
