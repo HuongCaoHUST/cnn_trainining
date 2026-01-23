@@ -135,7 +135,7 @@ class Communication:
         }
         self.publish_message(queue_name, pickle.dumps(payload))
 
-    def publish_model(self, model_path, queue_name):
+    def publish_model(self, model_path, queue_name, layer_id = None):
 
         try:
             if not os.path.exists(model_path):
@@ -144,8 +144,13 @@ class Communication:
 
             with open(model_path, 'rb') as f:
                 model_data = f.read()
+
+                payload = {
+                    'model_data': model_data,
+                    'layer_id': layer_id
+                }
             
-            self.publish_message(queue_name=queue_name, message=model_data)
+            self.publish_message(queue_name, pickle.dumps(payload))
             print(f"Successfully published model from {model_path} to '{queue_name}'")
         except Exception as e:
             print(f"An error occurred while publishing the model: {e}")

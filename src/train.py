@@ -176,7 +176,7 @@ class TrainerEdge:
     def post_processing(self):
         # Save model
         if self.save_model_enabled:
-            save_path = os.path.join(self.run_dir, 'cifar_net_edge.pth')
+            save_path = os.path.join(self.run_dir, 'cifar_net_edge.pt')
             torch.save(self.model.state_dict(), save_path)
             print(f"Model saved to {save_path}")
             self.comm.publish_model(save_path, queue_name='server_queue')
@@ -195,6 +195,12 @@ class TrainerEdge:
         for epoch in range(self.num_epochs):
             avg_train_loss = self.train_one_epoch(epoch)
             print(f'Epoch [{epoch+1}/{self.num_epochs}] -> Train Loss: {avg_train_loss:.4f}')
+
+            # Save checkpoint
+            save_path = os.path.join(self.run_dir, f'cifar_net_server_{epoch+1}.pt')
+            torch.save(self.model.state_dict(), save_path)
+            print(f"Model saved to {save_path}")
+            self.comm.publish_model(save_path, queue_name='server_queue', layer_id=1)
         
         print("Finished Training.")
         self.post_processing()
@@ -264,7 +270,7 @@ class TrainerServer:
     def train_one_epoch(self, epoch):
         self.model.train()
         running_loss = 0.0
-        train_progress_bar = tqdm(range(15), desc=f"Epoch {epoch+1}/{self.num_epochs} [Train]")
+        train_progress_bar = tqdm(range(4), desc=f"Epoch {epoch+1}/{self.num_epochs} [Train]")
         
         for i in train_progress_bar:
             body = self.comm.consume_message_sync('intermediate_queue')
@@ -336,7 +342,7 @@ class TrainerServer:
     def post_processing(self):
         # Save model
         if self.save_model_enabled:
-            save_path = os.path.join(self.run_dir, 'cifar_net_server.pth')
+            save_path = os.path.join(self.run_dir, 'cifar_net_server.pt')
             torch.save(self.model.state_dict(), save_path)
             print(f"Model saved to {save_path}")
             self.comm.publish_model(save_path, queue_name='server_queue')
@@ -354,12 +360,19 @@ class TrainerServer:
         for epoch in range(self.num_epochs):
             avg_train_loss = self.train_one_epoch(epoch)
             # avg_val_loss, val_accuracy = self.validate_one_epoch(epoch)
+
+            # Save checkpoint
+            save_path = os.path.join(self.run_dir, f'cifar_net_server_{epoch+1}.pt')
+            torch.save(self.model.state_dict(), save_path)
+            print(f"Model saved to {save_path}")
+            self.comm.publish_model(save_path, queue_name='server_queue', layer_id=2)
             
             # Log to CSV
             update_results_csv(epoch + 1, avg_train_loss, save_dir = self.run_dir)
             print(f'Epoch [{epoch+1}/{self.num_epochs}] -> Train Loss: {avg_train_loss:.4f}')
         
         print("Finished Training.")
+        self.mlflow_connector.end_run()
         self.post_processing()
         self.comm.close()
 
