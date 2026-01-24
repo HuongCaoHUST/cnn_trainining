@@ -56,7 +56,7 @@ class Trainer:
         self.num_classes = self.data_cfg['nc']
 
         # 2. Initialize model with the correct number of classes
-        self.model = YOLO11_Full(pretrained='yolo11n.pt').to(self.device)
+        self.model = YOLO11_Full(pretrained='yolo11n.pt', nc = self.num_classes).to(self.device)
 
         self.model.names = self.data_cfg['names']
 
