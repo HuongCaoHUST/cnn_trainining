@@ -28,6 +28,9 @@ class Server:
         self.nb_count = 0
         self.run_dir = create_run_dir('./', layer_id = 0)
         self.intermediate_model = [0,0]
+        self.intermediate_model_layer_1 = []
+        self.intermediate_model_layer_2 = []
+        
         self.batch_size = config['training']['batch_size']
         self.num_workers = config['training'].get('num_workers', 0)
 
@@ -83,17 +86,22 @@ class Server:
 
                 if layer_id == 1:
                     self.intermediate_model[0] += 1
+                    self.intermediate_model_layer_1.append(save_path)
                 else:
                     self.intermediate_model[1] += 1
+                    self.intermediate_model_layer_2.append(save_path)
 
                 print("Self.intermediate_model: ", self.intermediate_model)
 
                 if self.intermediate_model == self.num_client:
-                    model_full = YOLO11_Full()
+                    model_full = YOLO11_Full(nc = 20)
+                    print("Edge model: ", self.intermediate_model_layer_1[0])
+                    print("Server model: ", self.intermediate_model_layer_2[0])
+                    
                     self.model = self.merged_model(
                         model_full,
-                        edge_pt_path=r"results/run_0_22/client_layer_1_epoch_2.pt",
-                        server_pt_path=r"results/run_0_22/client_layer_2_epoch_2.pt"
+                        edge_pt_path=self.intermediate_model_layer_1[0],
+                        server_pt_path=self.intermediate_model_layer_2[0]
                     ).to(self.device)
 
                     self.data_cfg = check_det_dataset(self.datasets[0])
@@ -120,8 +128,10 @@ class Server:
                         collate_fn=self.val_dataset.collate_fn
                     )
 
-                    avg_val_loss, map50, map5095, mp, mr = self.validate_one_epoch(epoch - 1)
+                    avg_val_loss, map50, map5095, mp, mr = self.validate_one_epoch(epoch)
                     self.intermediate_model = [0,0]
+                    self.intermediate_model_layer_1 = []
+                    self.intermediate_model_layer_2 = []
 
             else:
                 print(f"Unknown action: {action}")
