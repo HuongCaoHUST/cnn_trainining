@@ -3,7 +3,7 @@ from ultralytics.data.utils import check_det_dataset
 from model.YOLO11n_custom import YOLO11_Full
 from ultralytics.data.dataset import YOLODataset
 from torch.utils.data import DataLoader
-from src.utils import create_run_dir
+from src.utils import update_results_csv, create_run_dir
 from src.utils_box import non_max_suppression
 from ultralytics.utils.metrics import ap_per_class, box_iou
 from ultralytics.utils.ops import xywh2xyxy
@@ -91,8 +91,6 @@ class Server:
                     self.intermediate_model[1] += 1
                     self.intermediate_model_layer_2.append(save_path)
 
-                print("Self.intermediate_model: ", self.intermediate_model)
-
                 if self.intermediate_model == self.num_client:
                     model_full = YOLO11_Full(nc = 20)
                     print("Edge model: ", self.intermediate_model_layer_1[0])
@@ -129,6 +127,7 @@ class Server:
                     )
 
                     avg_val_loss, map50, map5095, mp, mr = self.validate_one_epoch(epoch)
+                    update_results_csv(epoch + 1, avg_val_loss, map50, map5095, self.run_dir)
                     self.intermediate_model = [0,0]
                     self.intermediate_model_layer_1 = []
                     self.intermediate_model_layer_2 = []
@@ -202,7 +201,7 @@ class Server:
         stats = [] 
         conf_thres = 0.001
         iou_thres = 0.7
-        val_progress_bar = tqdm(self.val_loader, desc=f"[Val]")
+        val_progress_bar = tqdm(self.val_loader, desc=f"Epoch {epoch+1} [Val]")
         
         with torch.no_grad():
             for batch_idx, batch in enumerate(val_progress_bar):
