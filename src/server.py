@@ -126,8 +126,8 @@ class Server:
                     
                     self.model = self.merged_model(
                         model_full,
-                        edge_pt_path=edge_model,
-                        server_pt_path=server_model
+                        edge_models_list=edge_model,
+                        server_pt_path=server_model[0][0]
                     ).to(self.device)
 
                     self.data_cfg = check_det_dataset(self.datasets[0])
@@ -195,13 +195,8 @@ class Server:
     def get_total_nb_by_layer(self, layer_id):
         return sum(info.get("nb_train", 0) for info in self.client.values() if info.get("layer_id") == layer_id)
     
-    def merged_model(self, full_model, edge_pt_path, server_pt_path):
-        edge_state = torch.load(edge_pt_path, map_location='cpu')
+    def merged_model(self, full_model, edge_models_list, server_pt_path):
         server_state = torch.load(server_pt_path, map_location='cpu')
-
-        if 'model_state_dict' in edge_state: edge_state = edge_state['model_state_dict']
-        elif 'model' in edge_state: edge_state = edge_state['model']
-
         if 'model_state_dict' in server_state: server_state = server_state['model_state_dict']
         elif 'model' in server_state: server_state = server_state['model']
 
@@ -209,17 +204,36 @@ class Server:
         merged_sd = {}
 
         # Edge side model
-        for key, value in edge_state.items():
-            clean_key = key.replace('model.', '').replace('layers.', '')
-            target_key = f"layers.{clean_key}"
-            layer_idx = int(clean_key.split('.')[0])
+        print(f"Aggregating {len(edge_models_list)} edge models...")
+        total_samples = sum(item[1] for item in edge_models_list)
+        if total_samples == 0:
+            raise ValueError("Total samples is 0, cannot calculate weighted average.")
+
+        averaged_edge_state = {}
+
+        for path, num_samples in edge_models_list:
+            client_state = torch.load(path, map_location='cpu')
+            if 'model_state_dict' in client_state: client_state = client_state['model_state_dict']
+            elif 'model' in client_state: client_state = client_state['model']
+        
+            weight_factor = num_samples / total_samples
             
-            if layer_idx <= 10:
-                if target_key in full_sd:
-                    if full_sd[target_key].shape == value.shape:
-                        merged_sd[target_key] = value
+            for key, value in client_state.items():
+                clean_key = key.replace('model.', '').replace('layers.', '')
+                layer_idx = int(clean_key.split('.')[0])
+                if layer_idx <= 10:
+                    if clean_key not in averaged_edge_state:
+                        averaged_edge_state[clean_key] = value * weight_factor
                     else:
-                        print(f"Incorrect size at {target_key}: Code {full_sd[target_key].shape} != File {value.shape}")
+                        averaged_edge_state[clean_key] += value * weight_factor
+        for clean_key, value in averaged_edge_state.items():
+            target_key = f"layers.{clean_key}"
+            
+            if target_key in full_sd:
+                if full_sd[target_key].shape == value.shape:
+                    merged_sd[target_key] = value
+                else:
+                    print(f"Incorrect size at {target_key}: Code {full_sd[target_key].shape} != File {value.shape}")
         
         # Server side model
         SERVER_OFFSET = 11
