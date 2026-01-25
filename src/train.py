@@ -18,6 +18,7 @@ from model.YOLO11 import YOLO11_Full
 from src.utils import update_results_csv, save_plots, count_parameters, create_run_dir
 from src.dataset import Dataset
 from src.communication import Communication
+from src.mlflow import MLflowConnector
 from ultralytics.utils.loss import v8DetectionLoss
 from ultralytics.cfg import get_cfg
 from ultralytics.utils import DEFAULT_CFG
@@ -28,6 +29,9 @@ import numpy as np
 from src.utils_box import non_max_suppression
 from ultralytics.utils.metrics import ap_per_class, box_iou
 from ultralytics.utils.ops import xywh2xyxy
+
+MLFLOW_TRACKING_URI = "http://14.225.254.18:5000"
+EXPERIMENT_NAME = "Split_Learning"
 
 class Trainer:
     def __init__(self, config, device, num_classes, project_root):
@@ -116,6 +120,22 @@ class Trainer:
         self.history_val_loss = []
         self.history_map50 = []
 
+        self.mlflow_connector = MLflowConnector(
+            tracking_uri=MLFLOW_TRACKING_URI,
+            experiment_name=EXPERIMENT_NAME
+        )
+        self.mlflow_connector.start_run(run_name="Centralized Learning")
+
+        hyperparams = {
+            "batch_size": self.batch_size,
+            "learning_rate": self.learning_rate,
+            "num_workers": self.num_workers,
+            "num_epochs": self.num_epochs,
+            "optimizer_name": self.optimizer_name,
+            "model_name": self.model_name
+        }
+        self.mlflow_connector.log_params(hyperparams)
+
     def _init_model(self):
         print(f"Initializing model: {self.model_name}...")
         model_map = {
@@ -164,7 +184,7 @@ class Trainer:
             )
 
         avg_train_loss = running_loss / len(self.train_loader)
-        return avg_train_loss
+        return avg_train_loss, loss_items
     
     def validate_one_epoch(self, epoch):
         self.model.eval()
@@ -233,7 +253,7 @@ class Trainer:
         
         avg_val_loss = running_loss / len(self.val_loader)
         
-        return avg_val_loss, map50, map5095, mp, mr
+        return avg_val_loss, loss_items, map50, map5095, mp, mr
     
     def process_batch(self, detections, labels):
         iou_v = torch.linspace(0.5, 0.95, 10, device=self.device)
@@ -293,21 +313,34 @@ class Trainer:
         final_epoch = 0
         for epoch in range(self.num_epochs):
             final_epoch = epoch
-            avg_train_loss = self.train_one_epoch(epoch)
+            avg_train_loss, train_loss_items = self.train_one_epoch(epoch)
 
             self.history_train_loss.append(avg_train_loss)
 
-            avg_val_loss, map50, map5095, mp, mr = self.validate_one_epoch(epoch)
+            avg_val_loss, val_loss_items, map50, map5095, mp, mr = self.validate_one_epoch(epoch)
 
             self.history_val_loss.append(avg_val_loss)
             self.history_map50.append(map50)
+
+            self.mlflow_connector.log_metrics({
+                "train/box_loss": train_loss_items[0].item(),
+                "train/cls_loss": train_loss_items[1].item(),
+                "train/dfl_loss": train_loss_items[2].item(),
+                "val/box_loss": val_loss_items[0].item(),
+                "val/cls_loss": val_loss_items[1].item(),
+                "val/dfl_loss": val_loss_items[2].item(),
+                "metrics/precision": mp,
+                "metrics/recall": mr,
+                "metrics/mAP50": map50,
+                "metrics/mAP50-95": map5095,             
+                }, step=epoch+1)
 
             print(f"Epoch {epoch+1}/{self.num_epochs} - Train Loss: {avg_train_loss:.4f}, Val Loss: {avg_val_loss:.4f}, mAP@.50: {map50:.4f}, mAP@.5-.95: {map5095:.4f}")
             update_results_csv(epoch + 1, avg_train_loss, avg_val_loss, mp, mr, map50, map5095, self.run_dir)
 
         print("Finished Training.")
         save_plots(self.history_train_loss, self.history_val_loss, self.history_map50, self.run_dir)
-
+        self.mlflow_connector.end_run()
         self.comm.close()
         self.post_processing(final_epoch)
 
