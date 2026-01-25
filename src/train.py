@@ -311,7 +311,7 @@ class TrainerServer:
             )
 
             running_loss += total_loss.item()
-        return running_loss / len(train_progress_bar)
+        return running_loss / len(train_progress_bar), loss_items
 
     def validate_one_epoch(self, epoch):
         self.model.eval()
@@ -357,7 +357,16 @@ class TrainerServer:
         print("Starting Training...")
 
         for epoch in range(self.num_epochs):
-            avg_train_loss = self.train_one_epoch(epoch)
+            avg_train_loss, loss_items = self.train_one_epoch(epoch)
+
+            box_loss = loss_items[0].item()
+            cls_loss = loss_items[1].item()
+            dfl_loss = loss_items[2].item()
+            self.mlflow_connector.log_metrics({
+                "train/box_loss": box_loss,
+                "train/cls_loss": cls_loss,
+                "train/dfl_loss": dfl_loss
+                }, step=epoch+1)
             # avg_val_loss, val_accuracy = self.validate_one_epoch(epoch)
 
             # Save checkpoint
@@ -368,7 +377,6 @@ class TrainerServer:
             
             # Log to CSV
             update_results_csv(epoch + 1, avg_train_loss, save_dir = self.run_dir)
-            print(f'Epoch [{epoch+1}/{self.num_epochs}] -> Train Loss: {avg_train_loss:.4f}')
         
         print("Finished Training.")
         self.mlflow_connector.end_run()
