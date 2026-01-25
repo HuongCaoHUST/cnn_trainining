@@ -236,7 +236,7 @@ class Server:
                     print(f"Incorrect size at {target_key}: Code {full_sd[target_key].shape} != File {value.shape}")
         
         # Server side model
-        SERVER_OFFSET = 11
+        SERVER_OFFSET = 6
         for key, value in server_state.items():
             clean_key = key.replace('model.', '').replace('layers.', '')
             parts = clean_key.split('.')
