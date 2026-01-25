@@ -17,10 +17,6 @@ from model.VGG16_EDGE import VGG16_EDGE
 from model.VGG16_SERVER import VGG16_SERVER
 from model.YOLO11n_custom import YOLO11_EDGE, YOLO11_SERVER
 from src.utils import update_results_csv, save_plots, count_parameters, create_run_dir, clear_memory
-from src.dataset import Dataset
-from src.communication import Communication
-from src.server import Server
-from src.mlflow import MLflowConnector
 from ultralytics.utils.loss import v8DetectionLoss
 from ultralytics.cfg import get_cfg
 from ultralytics.utils import DEFAULT_CFG
@@ -256,22 +252,6 @@ class TrainerServer:
         self.history_val_loss = []
         self.history_val_accuracy = []
 
-        self.mlflow_connector = MLflowConnector(
-            tracking_uri=MLFLOW_TRACKING_URI,
-            experiment_name=EXPERIMENT_NAME
-        )
-        self.mlflow_connector.start_run(run_name="New Split Learning")
-
-        hyperparams = {
-            "batch_size": self.batch_size,
-            "learning_rate": self.learning_rate,
-            "num_workers": self.num_workers,
-            "num_epochs": self.num_epochs,
-            "optimizer_name": self.optimizer_name,
-            "model_name": self.model_name
-        }
-        self.mlflow_connector.log_params(hyperparams)
-
     def train_one_epoch(self, epoch):
         self.model.train()
         running_loss = 0.0
@@ -365,26 +345,17 @@ class TrainerServer:
         for epoch in range(self.num_epochs):
             avg_train_loss, loss_items = self.train_one_epoch(epoch)
 
-            box_loss = loss_items[0].item()
-            cls_loss = loss_items[1].item()
-            dfl_loss = loss_items[2].item()
-            self.mlflow_connector.log_metrics({
-                "train/box_loss": box_loss,
-                "train/cls_loss": cls_loss,
-                "train/dfl_loss": dfl_loss
-                }, step=epoch+1)
             # avg_val_loss, val_accuracy = self.validate_one_epoch(epoch)
 
             # Save checkpoint
             save_path = os.path.join(self.run_dir, f'cifar_net_server_{epoch+1}.pt')
             torch.save(self.model.state_dict(), save_path)
             print(f"Model saved to {save_path}")
-            self.comm.publish_model(queue_name='server_queue', model_path = save_path, layer_id = self.layer_id, epoch = epoch)
+            self.comm.publish_model(queue_name='server_queue', model_path = save_path, layer_id = self.layer_id, epoch = epoch, loss_items = loss_items)
             
             # Log to CSV
             update_results_csv(epoch + 1, avg_train_loss, save_dir = self.run_dir)
         
         print("Finished Training.")
-        self.mlflow_connector.end_run()
         self.post_processing()
         self.comm.close()

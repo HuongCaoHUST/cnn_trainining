@@ -166,7 +166,7 @@ class Communication:
         }
         self.publish_message(queue_name, pickle.dumps(payload))
 
-    def publish_model(self, queue_name, model_path, layer_id = None, epoch = None):
+    def publish_model(self, queue_name, model_path, layer_id = None, epoch = None, loss_items = None):
 
         try:
             if not os.path.exists(model_path):
@@ -182,7 +182,12 @@ class Communication:
                     'layer_id': layer_id,
                     'epoch': epoch
                 }
-            
+
+                if loss_items is not None:
+                    payload['box_loss'] = loss_items[0].item()
+                    payload['cls_loss'] = loss_items[1].item()
+                    payload['dfl_loss'] = loss_items[2].item()
+
             self.publish_message(queue_name, pickle.dumps(payload))
             print(f"Successfully published model from {model_path} to '{queue_name}'")
         except Exception as e:
