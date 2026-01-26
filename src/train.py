@@ -15,7 +15,7 @@ from model.Mobilenet import MobileNet
 from model.VGG16 import VGG16
 from model.VGG16_EDGE import VGG16_EDGE
 from model.VGG16_SERVER import VGG16_SERVER
-from model.YOLO11n_custom import YOLO11_EDGE, YOLO11_SERVER,YOLO11_EDGE_LAYER5, YOLO11_SERVER_LAYER5
+from model.YOLO11n_custom import YOLO11_EDGE, YOLO11_SERVER,YOLO11_EDGE_LAYER20, YOLO11_SERVER_LAYER20
 from src.utils import update_results_csv, save_plots, count_parameters, create_run_dir, clear_memory
 from ultralytics.utils.loss import v8DetectionLoss
 from ultralytics.cfg import get_cfg
@@ -59,7 +59,7 @@ class TrainerEdge:
         # Initialize model
         self.data_cfg = check_det_dataset(self.datasets)
         self.num_classes = self.data_cfg['nc']
-        self.model = YOLO11_EDGE_LAYER5(pretrained = 'yolo11n.pt').to(self.device)
+        self.model = YOLO11_EDGE_LAYER20(pretrained = 'yolo11n.pt').to(self.device)
 
         self.model.names = self.data_cfg['names']
         self.yolo_args = get_cfg(DEFAULT_CFG)
@@ -231,7 +231,7 @@ class TrainerServer:
         self.save_model_enabled = config['model'].get('save_model', True)
 
         # Initialize model
-        self.model = YOLO11_SERVER_LAYER5(pretrained = 'yolo11n.pt', nc = self.nc).to(self.device)
+        self.model = YOLO11_SERVER_LAYER20(pretrained = 'yolo11n.pt', nc = self.nc).to(self.device)
         self.model.names = self.class_names
         self.yolo_args = get_cfg(DEFAULT_CFG)
         self.model.args = self.yolo_args
