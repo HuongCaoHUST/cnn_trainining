@@ -40,6 +40,9 @@ class Server:
         self.num_epochs = config['training']['num_epochs']
         self.learning_rate = config['training']['learning_rate']
         self.optimizer_name = config['training'].get('optimizer', 'Adam')
+        self.cut_layer = config['model'].get('cut_layer', 5)
+        self.offset = self.cut_layer + 1
+
         self.epoch = 1
         
         self.mlflow_connector = MLflowConnector(
@@ -65,6 +68,8 @@ class Server:
         self.comm.create_queue('intermediate_queue')
         self.comm.create_queue('server_queue')
         self.comm.consume_messages('server_queue', self.on_message)
+        self.comm.close()
+        self.mlflow_connector.end_run()
 
     def on_message(self, ch, method, properties, body):
         try:
@@ -171,6 +176,9 @@ class Server:
                     update_results_csv(epoch + 1, avg_val_loss, map50, map5095, self.run_dir)
                     self.intermediate_model = [0,0]
                     self.epoch += 1
+                
+                if self.epoch == self.num_epochs:
+                    ch.stop_consuming()
 
             else:
                 print(f"Unknown action: {action}")
@@ -221,7 +229,7 @@ class Server:
             for key, value in client_state.items():
                 clean_key = key.replace('model.', '').replace('layers.', '')
                 layer_idx = int(clean_key.split('.')[0])
-                if layer_idx <= 10:
+                if layer_idx <= self.cut_layer:
                     if clean_key not in averaged_edge_state:
                         averaged_edge_state[clean_key] = value * weight_factor
                     else:
@@ -236,7 +244,7 @@ class Server:
                     print(f"Incorrect size at {target_key}: Code {full_sd[target_key].shape} != File {value.shape}")
         
         # Server side model
-        SERVER_OFFSET = 11
+        SERVER_OFFSET = self.offset
         for key, value in server_state.items():
             clean_key = key.replace('model.', '').replace('layers.', '')
             parts = clean_key.split('.')

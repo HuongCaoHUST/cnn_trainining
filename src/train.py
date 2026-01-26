@@ -15,7 +15,8 @@ from model.Mobilenet import MobileNet
 from model.VGG16 import VGG16
 from model.VGG16_EDGE import VGG16_EDGE
 from model.VGG16_SERVER import VGG16_SERVER
-from model.YOLO11n_custom import YOLO11_EDGE, YOLO11_SERVER
+from model.YOLO11n_custom import YOLO11_EDGE_5, YOLO11_EDGE_10, YOLO11_EDGE_15, YOLO11_EDGE_20
+from model.YOLO11n_custom import YOLO11_SERVER_5, YOLO11_SERVER_10, YOLO11_SERVER_15, YOLO11_SERVER_20
 from src.utils import update_results_csv, save_plots, count_parameters, create_run_dir, clear_memory
 from ultralytics.utils.loss import v8DetectionLoss
 from ultralytics.cfg import get_cfg
@@ -47,10 +48,10 @@ class TrainerEdge:
         self.learning_rate = config['training']['learning_rate']
         self.optimizer_name = config['training'].get('optimizer', 'Adam')
         self.momentum = config['training'].get('momentum', 0.9)
-        self.model_name = config['model']['edge']
         self.model_save_path = config['model']['save_path']
         self.save_model_enabled = config['model'].get('save_model', True)
         self.pretrained_path = config['model'].get('pretrained_path')
+        self.cut_layer = config['model'].get('cut_layer')
 
         # Create gradient queue
         self.gradient_queue_name = f'gradient_queue_{client_id}'
@@ -59,7 +60,15 @@ class TrainerEdge:
         # Initialize model
         self.data_cfg = check_det_dataset(self.datasets)
         self.num_classes = self.data_cfg['nc']
-        self.model = YOLO11_EDGE(pretrained = 'yolo11n.pt').to(self.device)
+        match self.cut_layer:
+            case 5:
+                self.model = YOLO11_EDGE_5(pretrained = 'yolo11n.pt').to(self.device)
+            case 10:
+                self.model = YOLO11_EDGE_10(pretrained = 'yolo11n.pt').to(self.device)
+            case 15:
+                self.model = YOLO11_EDGE_15(pretrained = 'yolo11n.pt').to(self.device)
+            case 20:
+                self.model = YOLO11_EDGE_20(pretrained = 'yolo11n.pt').to(self.device)
 
         self.model.names = self.data_cfg['names']
         self.yolo_args = get_cfg(DEFAULT_CFG)
@@ -226,12 +235,20 @@ class TrainerServer:
         self.learning_rate = config['training']['learning_rate']
         self.optimizer_name = config['training'].get('optimizer', 'Adam')
         self.momentum = config['training'].get('momentum', 0.9)
-        self.model_name = config['model']['server']
         self.model_save_path = config['model']['save_path']
         self.save_model_enabled = config['model'].get('save_model', True)
+        self.cut_layer = config['model'].get('cut_layer')
 
         # Initialize model
-        self.model = YOLO11_SERVER(pretrained = 'yolo11n.pt', nc = self.nc).to(self.device)
+        match self.cut_layer:
+            case 5:
+                self.model = YOLO11_SERVER_5(pretrained = 'yolo11n.pt').to(self.device)
+            case 10:
+                self.model = YOLO11_SERVER_10(pretrained = 'yolo11n.pt').to(self.device)
+            case 15:
+                self.model = YOLO11_SERVER_15(pretrained = 'yolo11n.pt').to(self.device)
+            case 20:
+                self.model = YOLO11_SERVER_20(pretrained = 'yolo11n.pt').to(self.device)
         self.model.names = self.class_names
         self.yolo_args = get_cfg(DEFAULT_CFG)
         self.model.args = self.yolo_args

@@ -13,7 +13,7 @@ class Client:
         self.layer_id = layer_id
         self.client_id = client_id
 
-        time.sleep(5)
+        time.sleep(12)
         self.comm.connect()
         self.client_queue_name = f'client_queue_{client_id}'
         self.comm.create_queue(self.client_queue_name)
@@ -43,11 +43,9 @@ class Client:
     def run(self):
         print("Client class initialized.")
         if self.layer_id == 1:
-            time.sleep(10)
             trainer = TrainerEdge(self.config, self.device, self.project_root, self.comm, self.layer_id, self.client_id, self.datasets)
             trainer.run()
         elif self.layer_id == 2:
-            time.sleep(10)
             trainer = TrainerServer(self.config, self.device, self.project_root, self.comm, self.layer_id, self.client_id, self.nb, self.nc, self.class_names)
             trainer.run()
         else:
