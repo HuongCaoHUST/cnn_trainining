@@ -193,3 +193,24 @@ class Communication:
             print(f"Successfully published model from {model_path} to '{queue_name}'")
         except Exception as e:
             print(f"An error occurred while publishing the model: {e}")
+
+    def publish_global_model(self, client_ids = None, global_model_path = None):
+
+        try:
+            for i, client_id in enumerate(client_ids):
+                if not os.path.exists(global_model_path):
+                    print(f"Error: Model file not found at {global_model_path}")
+                    return
+
+                with open(global_model_path, 'rb') as f:
+                    model_data = f.read()
+
+                    payload = {
+                        'action': 'update_global_model',
+                        'global_model': global_model_path
+                    }
+                queue_name = f'client_queue_{client_id}'
+                self.publish_message(queue_name, pickle.dumps(payload))
+            print(f"Successfully published model from {global_model_path} to '{queue_name}'")
+        except Exception as e:
+            print(f"An error occurred while publishing the model: {e}")

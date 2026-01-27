@@ -172,6 +172,13 @@ class Server:
                     self.intermediate_model = [0,0]
                     self.epoch += 1
 
+                    save_path = f"{self.run_dir}/global_model_{self.round}.pt"
+                    ckpt = {'model': self.model,
+                            'train_args': {},
+                            'epoch': -1}
+                    torch.save(ckpt, save_path)
+                    print(f"Model saved to {save_path}")
+                    self.round += 1
             else:
                 print(f"Unknown action: {action}")
 
