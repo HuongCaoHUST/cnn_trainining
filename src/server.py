@@ -41,6 +41,7 @@ class Server:
         self.learning_rate = config['training']['learning_rate']
         self.optimizer_name = config['training'].get('optimizer', 'Adam')
         self.epoch = 1
+        self.round = 1 
         
         self.mlflow_connector = MLflowConnector(
             tracking_uri=MLFLOW_TRACKING_URI,
